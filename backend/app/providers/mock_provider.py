@@ -59,7 +59,7 @@ def build_reply(model: str, prompt: str, history_len: int) -> str:
     cites = ""
     if "<knowledge_sources>" in prompt:
         prompt, block = prompt.split("<knowledge_sources>", 1)
-        found = re.findall(r'<source n="(\d+)" title="([^"]*)">\n(.*?)\n</source>', block, re.S)
+        found = re.findall(r'<source n="(\d+)" title="([^"]*)"[^>]*>\n(.*?)\n</source>', block, re.S)
         cites = "".join(f"- Source [{n}] ({html.unescape(t)}): _{c.strip()[:120]}_\n" for n, t, c in found[:3])
         cites = f"Knowledge base passages I was given:\n\n{cites}\n" if cites else ""
     snippet = prompt.strip().replace("\n", " ")

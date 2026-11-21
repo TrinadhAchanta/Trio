@@ -1,5 +1,6 @@
 import logging
 import uuid
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -7,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .config import get_settings
-from .routers import artifacts, auth, billing, chat, compare, conversations, evals, files, knowledge, meta
+from .routers import artifacts, auth, billing, chat, compare, conversations, evals, files, knowledge, meta, research
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("trio")
@@ -18,7 +19,18 @@ def create_app() -> FastAPI:
     if s.environment == "production" and s.jwt_secret.startswith("dev-only"):
         raise RuntimeError("Set JWT_SECRET to a strong random value in production.")
 
-    app = FastAPI(title=f"{s.app_name} API", version="0.1.0",
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        from .services.research import fail_interrupted_jobs
+        try:
+            n = fail_interrupted_jobs()
+            if n:
+                log.warning("Marked %d interrupted research job(s) as failed", n)
+        except Exception:
+            log.exception("Could not check for interrupted research jobs")
+        yield
+
+    app = FastAPI(title=f"{s.app_name} API", version="0.1.0", lifespan=lifespan,
                   docs_url="/api/docs" if s.environment != "production" else None, openapi_url="/api/openapi.json")
 
     app.add_middleware(CORSMiddleware, allow_origins=s.cors_origins, allow_credentials=True,
@@ -46,7 +58,7 @@ def create_app() -> FastAPI:
         log.exception("Unhandled error on %s %s", request.method, request.url.path)
         return JSONResponse(status_code=500, content={"detail": "Something went wrong on our side."})
 
-    for r in (auth, conversations, chat, files, artifacts, compare, billing, meta, evals, knowledge):
+    for r in (auth, conversations, chat, files, artifacts, compare, billing, meta, evals, knowledge, research):
         app.include_router(r.router)
     return app
 

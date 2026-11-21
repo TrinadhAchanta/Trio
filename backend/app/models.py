@@ -310,3 +310,23 @@ class KBChunk(Base):
     tsv = mapped_column(TSVECTOR, Computed("to_tsvector('english', content)", persisted=True))
 
     __table_args__ = (Index("ix_kb_chunks_tsv", "tsv", postgresql_using="gin"),)
+
+
+# ---- Phase 2: deep research ----
+class ResearchJob(TimestampMixin, Base):
+    __tablename__ = "research_jobs"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"))
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    model: Mapped[str] = mapped_column(String(160), nullable=False, default="auto")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="queued")  # queued|running|done|error|cancelled
+    search_provider: Mapped[str | None] = mapped_column(String(40))
+    demo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    steps: Mapped[list] = mapped_column(JSON, default=list, nullable=False)  # [{at, message}]
+    queries: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    sources: Mapped[list] = mapped_column(JSON, default=list, nullable=False)  # [{n, title, url, excerpt, cited}]
+    report: Mapped[str | None] = mapped_column(Text)
+    used_model: Mapped[str | None] = mapped_column(String(160))
+    stats: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    error: Mapped[str | None] = mapped_column(Text)

@@ -66,6 +66,12 @@ class Settings(BaseSettings):
     # Safety: live-mode keys (sk_live_...) are refused unless this is explicitly true.
     stripe_allow_live: bool = False
 
+    # Web search for deep research (either one). Without a key, a clearly labeled demo search is used
+    # when the mock provider is enabled.
+    brave_search_api_key: str = ""
+    tavily_api_key: str = ""
+    research_max_sources: int = 8
+
 
 @lru_cache
 def get_settings() -> Settings:
