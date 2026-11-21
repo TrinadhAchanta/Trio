@@ -27,6 +27,7 @@ import { api, streamSSE, uploadFile } from "@/lib/api";
 import type { Artifact, ConversationDetail, FileInfo, Message, Reasoning, Source } from "@/lib/types";
 import { useApp } from "./AppShell";
 import { ArtifactPanel } from "./ArtifactPanel";
+import { DownloadMenu } from "./DownloadMenu";
 import { KnowledgePicker } from "./KnowledgePicker";
 import { Markdown } from "./Markdown";
 import { ModelPicker, ReasoningPicker, modelLabel } from "./ModelPicker";
@@ -667,6 +668,7 @@ function MessageRow({
         <button className={iconBtn} onClick={copy} aria-label="Copy reply">
           {copied ? <Check size={14} /> : <Copy size={14} />}
         </button>
+        {msg.content && msg.status !== "error" && <DownloadMenu markdown={msg.content} className={iconBtn} />}
         <button className={iconBtn} disabled={busy} onClick={onRegenerate} aria-label="Regenerate reply" title="Regenerate with the selected model">
           <RefreshCw size={14} />
         </button>

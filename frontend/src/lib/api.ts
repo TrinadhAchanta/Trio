@@ -74,3 +74,23 @@ export async function uploadFile(file: File) {
   if (!res.ok) throw await parseError(res);
   return (await res.json()) as import("./types").FileInfo;
 }
+
+/** POST JSON and save the response as a file (used for document exports). */
+export async function downloadPost(path: string, json: unknown, fallbackName = "download") {
+  const res = await fetch(path, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(json),
+  });
+  if (!res.ok) throw await parseError(res);
+  const name = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? fallbackName;
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}

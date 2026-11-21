@@ -330,3 +330,16 @@ class ResearchJob(TimestampMixin, Base):
     used_model: Mapped[str | None] = mapped_column(String(160))
     stats: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     error: Mapped[str | None] = mapped_column(Text)
+
+
+# ---- Phase 2: generated documents ----
+class GeneratedDocument(TimestampMixin, Base):
+    __tablename__ = "documents"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"))
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    kind: Mapped[str] = mapped_column(String(30), nullable=False)  # report|memo|letter|slides|spreadsheet|other
+    prompt: Mapped[str | None] = mapped_column(Text)
+    markdown: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    model: Mapped[str | None] = mapped_column(String(160))
