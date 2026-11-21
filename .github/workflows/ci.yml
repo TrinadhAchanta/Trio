@@ -1,0 +1,67 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_USER: trio, POSTGRES_PASSWORD: trio, POSTGRES_DB: trio_test }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U trio" --health-interval 5s --health-retries 20
+    defaults: { run: { working-directory: backend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - run: pip-audit -r requirements.txt
+      - run: pytest -q
+        env: { DATABASE_URL: "postgresql+psycopg://trio:trio@localhost:5432/trio_test" }
+      - name: Migrations apply cleanly
+        run: alembic upgrade head
+        env: { DATABASE_URL: "postgresql+psycopg://trio:trio@localhost:5432/trio_test" }
+
+  frontend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_USER: trio, POSTGRES_PASSWORD: trio, POSTGRES_DB: trio }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U trio" --health-interval 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - name: Start API (mock provider only)
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg://trio:trio@localhost:5432/trio
+          RATE_LIMIT_AUTH_PER_MINUTE: "500"
+        run: |
+          pip install -r requirements.txt
+          alembic upgrade head
+          nohup uvicorn app.main:app --port 8000 > api.log 2>&1 &
+      - working-directory: frontend
+        run: |
+          npm ci
+          npm audit --omit=dev
+          npm run lint
+          npm run typecheck
+          npm run build
+          npx playwright install --with-deps chromium
+          nohup npx next start -p 3000 > web.log 2>&1 &
+          npx wait-on -t 60000 http://localhost:3000/login http://localhost:8000/api/health
+          npx playwright test --trace off
+      - if: failure()
+        run: tail -n 100 backend/api.log frontend/web.log || true

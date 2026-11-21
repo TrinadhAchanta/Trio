@@ -1,0 +1,37 @@
+# Local full stack: docker compose up --build   then open http://localhost:3000
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: trio
+      POSTGRES_PASSWORD: trio
+      POSTGRES_DB: trio
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trio"]
+      interval: 3s
+      retries: 20
+
+  api:
+    build: ./backend
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://trio:trio@db:5432/trio
+      STORAGE_DIR: /app/data/uploads
+    volumes: [uploads:/app/data/uploads]
+    depends_on:
+      db: { condition: service_healthy }
+    ports: ["8000:8000"]
+
+  web:
+    build:
+      context: ./frontend
+      args: { TRIO_API_ORIGIN: "http://api:8000" }
+    depends_on: [api]
+    ports: ["3000:3000"]
+
+volumes:
+  pgdata:
+  uploads:
