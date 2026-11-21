@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .config import get_settings
-from .routers import artifacts, auth, billing, chat, compare, conversations, files, meta
+from .routers import artifacts, auth, billing, chat, compare, conversations, evals, files, meta
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("trio")
@@ -22,7 +22,8 @@ def create_app() -> FastAPI:
                   docs_url="/api/docs" if s.environment != "production" else None, openapi_url="/api/openapi.json")
 
     app.add_middleware(CORSMiddleware, allow_origins=s.cors_origins, allow_credentials=True,
-                       allow_methods=["GET", "POST", "PATCH", "DELETE"], allow_headers=["Content-Type", "Authorization", "Stripe-Signature"])
+                       allow_methods=["GET", "POST", "PATCH", "DELETE"],
+                       allow_headers=["Content-Type", "Authorization", "Stripe-Signature"])
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
@@ -45,7 +46,7 @@ def create_app() -> FastAPI:
         log.exception("Unhandled error on %s %s", request.method, request.url.path)
         return JSONResponse(status_code=500, content={"detail": "Something went wrong on our side."})
 
-    for r in (auth, conversations, chat, files, artifacts, compare, billing, meta):
+    for r in (auth, conversations, chat, files, artifacts, compare, billing, meta, evals):
         app.include_router(r.router)
     return app
 

@@ -86,7 +86,9 @@ def test_chat_consumes_credits_and_failures_are_free(authed):
     s = authed.get("/api/billing/subscription").json()
     assert s["credits_used"] == 1  # min 1 credit for the successful call, 0 for the failed one
     with SessionLocal() as db:
-        assert sorted(u.credits for u in db.query(UsageRecord).all()) == [0, 1]
+        # the failed request also tried a fallback model; every failed attempt costs 0
+        credits = sorted(u.credits for u in db.query(UsageRecord).all())
+        assert credits[-1] == 1 and set(credits[:-1]) == {0}
 
 
 def test_credit_formula():

@@ -13,6 +13,7 @@ import json
 import logging
 import time
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -27,9 +28,12 @@ from ..providers.mock_provider import estimate_tokens
 from ..providers.registry import get_registry
 from ..schemas import ArtifactOut, MessageOut, RegenerateIn, SendMessageIn
 from ..security import enforce_rate_limit, get_current_user, primary_org_id
-from ..services.billing import enforce_credits
 from ..services.artifacts import ARTIFACT_SYSTEM_PROMPT, detect_artifacts
+from ..services.billing import enforce_credits
+from ..services.evidence import load_evidence
 from ..services.files import get_storage
+from ..services.health import health
+from ..services.router import classify_task
 from ..services.usage import over_budget, record_usage
 from .conversations import get_owned_conversation
 
@@ -44,14 +48,37 @@ def sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
 
 
-def resolve_model(model_id: str, prompt: str, mode: str, needs_vision: bool) -> tuple[Provider, ModelInfo, str]:
+FALLBACK_CODES = {"provider_unavailable", "provider_rate_limited", "provider_auth_failed", "model_not_found",
+                  "provider_not_configured", "internal_error"}
+MAX_ATTEMPTS = 3
+
+
+@dataclass
+class RoutePlan:
+    attempts: list[tuple[Provider, ModelInfo]]
+    reason: str
+    task_type: str
+
+
+def resolve_model(model_id: str, prompt: str, mode: str, needs_vision: bool, user: User | None = None,
+                  db: Session | None = None) -> RoutePlan:
+    """Choose the model (or validate the user's choice) and an ordered fallback list."""
     reg = get_registry()
+    prefs = (user.preferences or {}) if user else {}
+    allowed = prefs.get("allowed_providers") or None
+    preferred = prefs.get("preferred_providers") or None
+    allow_fallback = prefs.get("allow_fallback", True)
+    evidence = load_evidence(db) if db is not None else None
+    decision = reg.route(prompt, mode, needs_vision, evidence=evidence,  # type: ignore[arg-type]
+                         allowed_providers=allowed, preferred_providers=preferred)
+    task_type = decision.task_type if decision else classify_task(prompt, needs_vision)[0]
     if model_id == "auto":
-        decision = reg.route(prompt, mode, needs_vision)  # type: ignore[arg-type]
         if not decision:
             raise HTTPException(status_code=400, detail="No AI provider is configured on the server.")
-        provider = reg.providers[decision.model.provider]
-        return provider, decision.model, decision.reason
+        ranked = [(reg.providers[c.model.provider], c.model) for c in decision.ranked]
+        # Never fall back from a real model to the mock: that would replace a real answer with demo text.
+        ranked = ranked[:1] + [(p, m) for p, m in ranked[1:] if m.provider != "mock" or ranked[0][1].provider == "mock"]
+        return RoutePlan(ranked[: MAX_ATTEMPTS if allow_fallback else 1], decision.reason, task_type)
     resolved = reg.resolve(model_id)
     if not resolved:
         raise HTTPException(status_code=400, detail=f"Unknown model '{model_id}'.")
@@ -60,7 +87,13 @@ def resolve_model(model_id: str, prompt: str, mode: str, needs_vision: bool) -> 
         raise HTTPException(status_code=400, detail=f"{provider.label} is not configured on this server.")
     if needs_vision and not info.vision:
         raise HTTPException(status_code=400, detail=f"{info.label} does not accept images.")
-    return provider, info, f"Selected manually: {info.label}"
+    if allowed and info.provider not in allowed and info.provider != "mock":
+        raise HTTPException(status_code=400, detail=f"{provider.label} is not in your allowed providers.")
+    attempts = [(provider, info)]
+    if allow_fallback and decision:
+        attempts += [(reg.providers[c.model.provider], c.model) for c in decision.ranked
+                     if c.model.id != info.id and (c.model.provider != "mock" or info.provider == "mock")]
+    return RoutePlan(attempts[:MAX_ATTEMPTS], f"Selected manually: {info.label}", task_type)
 
 
 def path_to(conv: Conversation, leaf_id: uuid.UUID) -> list[Message]:
@@ -123,20 +156,23 @@ def build_context(db: Session, user: User, path: list[Message], info: ModelInfo,
 
 
 def _finalize(*, user_id, org_id, conv_id, assistant_id, info: ModelInfo, text: str, usage, error: ProviderError | None,
-              status: str, latency_ms: int, chat_messages: list[ChatMessage]) -> dict:
+              status: str, latency_ms: int, chat_messages: list[ChatMessage], task_type: str,
+              notice: str | None = None) -> dict:
     in_tok = usage.input_tokens if usage else estimate_tokens("".join(c.content for c in chat_messages))
     out_tok = usage.output_tokens if usage else estimate_tokens(text) if text else 0
     cost = info.cost(in_tok, out_tok)
     with SessionLocal() as db:
         msg = db.get(Message, assistant_id)
         msg.content = text
+        msg.provider, msg.model, msg.task_type, msg.notice = info.provider, info.model, task_type, notice
         msg.status = "error" if error else ("stopped" if status == "cancelled" else "complete")
         msg.error = f"{error.code}: {error.message}" if error else None
         msg.input_tokens, msg.output_tokens, msg.latency_ms = in_tok, out_tok, latency_ms
         record_usage(db, user_id=user_id, org_id=org_id, feature="chat", provider=info.provider, model=info.model,
                      input_tokens=in_tok, output_tokens=out_tok, cost_usd=cost, latency_ms=latency_ms,
                      status="error" if error else status, error_code=error.code if error else None,
-                     error_message=error.message if error else None, conversation_id=conv_id, message_id=assistant_id)
+                     error_message=error.message if error else None, conversation_id=conv_id, message_id=assistant_id,
+                     task_type=task_type)
         artifacts: list[Artifact] = []
         if not error and status == "ok":
             for a in detect_artifacts(text):
@@ -155,16 +191,27 @@ def _finalize(*, user_id, org_id, conv_id, assistant_id, info: ModelInfo, text: 
         }
 
 
-async def stream_reply(*, user_id, org_id, conv_id, assistant_id, provider: Provider, info: ModelInfo,
-                       chat_messages: list[ChatMessage], mode: str, route_reason: str, user_message: dict | None):
+def _record_failed_attempt(*, user_id, org_id, conv_id, assistant_id, info: ModelInfo, error: ProviderError,
+                           latency_ms: int, task_type: str) -> None:
+    with SessionLocal() as db:
+        record_usage(db, user_id=user_id, org_id=org_id, feature="chat", provider=info.provider, model=info.model,
+                     latency_ms=latency_ms, status="error", error_code=error.code, error_message=error.message,
+                     conversation_id=conv_id, message_id=assistant_id, task_type=task_type)
+        db.commit()
+
+
+async def stream_reply(*, user_id, org_id, conv_id, assistant_id, plan: RoutePlan, chat_messages: list[ChatMessage],
+                       mode: str, user_message: dict | None):
     s = get_settings()
+    provider, info = plan.attempts[0]
     yield sse("meta", {
         "user_message": user_message,
         "assistant_message_id": str(assistant_id),
         "provider": info.provider,
         "model": info.model,
         "model_label": info.label,
-        "route_reason": route_reason,
+        "route_reason": plan.reason,
+        "task_type": plan.task_type,
         "mock": info.provider == "mock",
     })
     start = time.perf_counter()
@@ -172,29 +219,52 @@ async def stream_reply(*, user_id, org_id, conv_id, assistant_id, provider: Prov
     usage = None
     error: ProviderError | None = None
     status = "ok"
+    notice: str | None = None
     result: dict = {}
     try:
-        async for ev in provider.stream(info.model, chat_messages, system=ARTIFACT_SYSTEM_PROMPT,
-                                        max_tokens=s.max_output_tokens, reasoning=mode):  # type: ignore[arg-type]
-            if ev.type == "text":
-                parts.append(ev.text)
-                yield sse("delta", {"text": ev.text})
-            elif ev.type == "usage":
-                usage = ev
-    except ProviderError as e:
-        error = e
+        for idx, (provider, info) in enumerate(plan.attempts):
+            attempt_start = time.perf_counter()
+            error = None
+            try:
+                async for ev in provider.stream(info.model, chat_messages, system=ARTIFACT_SYSTEM_PROMPT,
+                                                max_tokens=s.max_output_tokens, reasoning=mode):  # type: ignore[arg-type]
+                    if ev.type == "text":
+                        parts.append(ev.text)
+                        yield sse("delta", {"text": ev.text})
+                    elif ev.type == "usage":
+                        usage = ev
+                health.record(info.provider, info.model, True, int((time.perf_counter() - attempt_start) * 1000))
+                break
+            except ProviderError as e:
+                error = e
+            except (asyncio.CancelledError, GeneratorExit):
+                raise
+            except Exception:
+                log.exception("Unexpected error while streaming from %s", info.id)
+                error = ProviderError("internal_error", "Something went wrong while generating the response.")
+            health.record(info.provider, info.model, False, retryable=error.retryable, error=error.code)
+            last = idx == len(plan.attempts) - 1
+            if parts or last or error.code not in FALLBACK_CODES:
+                break
+            _record_failed_attempt(user_id=user_id, org_id=org_id, conv_id=conv_id, assistant_id=assistant_id, info=info,
+                                   error=error, latency_ms=int((time.perf_counter() - attempt_start) * 1000),
+                                   task_type=plan.task_type)
+            nxt = plan.attempts[idx + 1][1]
+            notice = f"{info.label} was unavailable ({error.message}), so {nxt.label} answered instead."
+            yield sse("fallback", {"from": info.id, "from_label": info.label, "to": nxt.id, "to_label": nxt.label,
+                                   "provider": nxt.provider, "model": nxt.model, "model_label": nxt.label,
+                                   "mock": nxt.provider == "mock", "reason": error.message, "code": error.code,
+                                   "notice": notice})
     except (asyncio.CancelledError, GeneratorExit):
         status = "cancelled"
         raise
-    except Exception:
-        log.exception("Unexpected error while streaming from %s", info.id)
-        error = ProviderError("internal_error", "Something went wrong while generating the response.")
     finally:
         latency_ms = int((time.perf_counter() - start) * 1000)
         try:
             result = _finalize(user_id=user_id, org_id=org_id, conv_id=conv_id, assistant_id=assistant_id, info=info,
                                text="".join(parts), usage=usage, error=error, status=status,
-                               latency_ms=latency_ms, chat_messages=chat_messages)
+                               latency_ms=latency_ms, chat_messages=chat_messages, task_type=plan.task_type,
+                               notice=notice)
         except Exception:
             log.exception("Failed to save assistant message %s", assistant_id)
     if error:
@@ -237,10 +307,11 @@ async def send_message(conversation_id: uuid.UUID, body: SendMessageIn, request:
     else:
         parent_id = conv.messages[-1].id if conv.messages else None
 
-    provider, info, reason = resolve_model(body.model, body.content, body.reasoning_mode, needs_vision)
+    plan = resolve_model(body.model, body.content, body.reasoning_mode, needs_vision, user, db)
+    info = plan.attempts[0][1]
 
     user_msg = Message(conversation_id=conv.id, parent_id=parent_id, role="user", content=body.content,
-                       attachments=[str(f.id) for f in files])
+                       attachments=[str(f.id) for f in files], task_type=plan.task_type)
     db.add(user_msg)
     db.flush()
     assistant = Message(conversation_id=conv.id, parent_id=user_msg.id, role="assistant", status="streaming",
@@ -256,8 +327,8 @@ async def send_message(conversation_id: uuid.UUID, body: SendMessageIn, request:
 
     chat_messages = build_context(db, user, path_to(conv, user_msg.id), info, get_settings().max_output_tokens)
     return _streaming_response(stream_reply(
-        user_id=user.id, org_id=conv.org_id, conv_id=conv.id, assistant_id=assistant.id, provider=provider,
-        info=info, chat_messages=chat_messages, mode=body.reasoning_mode, route_reason=reason,
+        user_id=user.id, org_id=conv.org_id, conv_id=conv.id, assistant_id=assistant.id, plan=plan,
+        chat_messages=chat_messages, mode=body.reasoning_mode,
         user_message=MessageOut.model_validate(user_msg).model_dump(mode="json"),
     ))
 
@@ -271,7 +342,8 @@ async def regenerate(conversation_id: uuid.UUID, body: RegenerateIn, user: User 
     if not user_msg or user_msg.conversation_id != conv.id or user_msg.role != "user":
         raise HTTPException(status_code=400, detail="user_message_id must be a user message in this conversation.")
     needs_vision = any(f.kind == "image" for f in load_attachments(db, user, user_msg.attachments))
-    provider, info, reason = resolve_model(body.model, user_msg.content, body.reasoning_mode, needs_vision)
+    plan = resolve_model(body.model, user_msg.content, body.reasoning_mode, needs_vision, user, db)
+    info = plan.attempts[0][1]
     assistant = Message(conversation_id=conv.id, parent_id=user_msg.id, role="assistant", status="streaming",
                         provider=info.provider, model=info.model)
     db.add(assistant)
@@ -279,6 +351,6 @@ async def regenerate(conversation_id: uuid.UUID, body: RegenerateIn, user: User 
     db.refresh(conv)
     chat_messages = build_context(db, user, path_to(conv, user_msg.id), info, get_settings().max_output_tokens)
     return _streaming_response(stream_reply(
-        user_id=user.id, org_id=conv.org_id, conv_id=conv.id, assistant_id=assistant.id, provider=provider,
-        info=info, chat_messages=chat_messages, mode=body.reasoning_mode, route_reason=reason, user_message=None,
+        user_id=user.id, org_id=conv.org_id, conv_id=conv.id, assistant_id=assistant.id, plan=plan,
+        chat_messages=chat_messages, mode=body.reasoning_mode, user_message=None,
     ))

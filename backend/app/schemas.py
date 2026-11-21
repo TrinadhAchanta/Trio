@@ -42,6 +42,9 @@ class PreferencesIn(BaseModel):
     default_model: str | None = None
     reasoning_mode: Reasoning | None = None
     theme: Literal["light", "dark", "system"] | None = None
+    allowed_providers: list[str] | None = None  # empty list = all providers allowed
+    preferred_providers: list[str] | None = None
+    allow_fallback: bool | None = None
 
 
 # ---- conversations ----
@@ -86,6 +89,7 @@ class MessageOut(ORM):
     output_tokens: int | None
     latency_ms: int | None
     rating: int | None
+    notice: str | None = None
     created_at: datetime
 
 

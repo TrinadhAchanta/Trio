@@ -59,7 +59,8 @@ def test_auto_routing_uses_configured_provider(authed):
     events = send(authed, cid, "hi", model="auto", reasoning_mode="deep")
     meta = events[0][1]
     assert meta["model"] == "mock-deep"
-    assert "Deep mode" in meta["route_reason"]
+    assert meta["route_reason"].startswith("Chat task: chose Mock Deep")
+    assert meta["task_type"] == "chat"
 
 
 def test_unconfigured_and_unknown_models_rejected(authed):
@@ -71,6 +72,7 @@ def test_unconfigured_and_unknown_models_rejected(authed):
 
 
 def test_provider_failure_is_reported_and_recorded(authed):
+    authed.patch("/api/auth/me/preferences", json={"allow_fallback": False})
     cid = new_conv(authed)
     events = send(authed, cid, "please fail [[mock-error]]")
     assert events[-1][0] == "error"
@@ -198,11 +200,11 @@ def test_daily_budget_blocks_requests(authed, monkeypatch):
 def test_usage_summary(authed):
     cid = new_conv(authed)
     send(authed, cid, "hi")
-    send(authed, cid, "boom [[mock-error]]")
+    send(authed, cid, "boom [[mock-error]]")  # mock-echo fails, then its fallback mock-deep fails too
     s = authed.get("/api/usage/summary").json()
     statuses = sorted(r["status"] for r in s["by_model"])
-    assert statuses == ["error", "ok"]
-    assert len(s["recent"]) == 2 and s["recent"][0]["error_code"] == "provider_unavailable"
+    assert statuses == ["error", "error", "ok"]
+    assert len(s["recent"]) == 3 and s["recent"][0]["error_code"] == "provider_unavailable"
 
 
 def test_models_endpoint_labels_configuration(authed):
@@ -225,7 +227,7 @@ async def test_client_disconnect_saves_partial_reply_as_stopped(authed):
     from app.models import Conversation, User
     from app.providers.base import ChatMessage
     from app.providers.registry import get_registry
-    from app.routers.chat import stream_reply
+    from app.routers.chat import RoutePlan, stream_reply
 
     cid = new_conv(authed)
     with SessionLocal() as db:
@@ -239,9 +241,9 @@ async def test_client_disconnect_saves_partial_reply_as_stopped(authed):
         db.add(am)
         db.commit()
         ids = (user.id, conv.org_id, conv.id, am.id)
-    provider, info = get_registry().resolve("mock:mock-echo")
-    gen = stream_reply(user_id=ids[0], org_id=ids[1], conv_id=ids[2], assistant_id=ids[3], provider=provider, info=info,
-                       chat_messages=[ChatMessage("user", "hello")], mode="fast", route_reason="test", user_message=None)
+    plan = RoutePlan([get_registry().resolve("mock:mock-echo")], "test", "chat")
+    gen = stream_reply(user_id=ids[0], org_id=ids[1], conv_id=ids[2], assistant_id=ids[3], plan=plan,
+                       chat_messages=[ChatMessage("user", "hello")], mode="fast", user_message=None)
     assert (await gen.__anext__()).startswith("event: meta")
     assert (await gen.__anext__()).startswith("event: delta")
     await gen.aclose()  # what Starlette does when the browser disconnects / user presses Stop

@@ -19,6 +19,8 @@ from app.db import Base, engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.providers.registry import get_registry  # noqa: E402
 from app.security import limiter  # noqa: E402
+from app.services import evidence  # noqa: E402
+from app.services.health import health  # noqa: E402
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -37,6 +39,8 @@ def _clean():
         names = ", ".join(t.name for t in Base.metadata.sorted_tables)
         conn.execute(text(f"TRUNCATE {names} CASCADE"))
     limiter.reset()
+    health.reset()
+    evidence.invalidate()
 
 
 def make_client() -> TestClient:

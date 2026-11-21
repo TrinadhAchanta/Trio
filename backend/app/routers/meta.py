@@ -9,6 +9,7 @@ from ..db import get_db
 from ..models import UsageRecord, User
 from ..providers.registry import get_registry
 from ..security import get_current_user
+from ..services.health import health as provider_health
 from ..services.usage import spent_today_usd
 
 router = APIRouter(prefix="/api", tags=["meta"])
@@ -43,8 +44,23 @@ async def list_models(verify: bool = False, user: User = Depends(get_current_use
                 "verified": None if live is None else (m.model in live),
             })
         providers.append({"name": name, "label": p.label, "configured": p.configured(), "mock": name == "mock",
-                          "models": models})
+                          "health": provider_health.state(name), "models": models})
     return {"providers": providers, "auto_available": bool(reg.available_models())}
+
+
+@router.get("/status")
+def provider_status(user: User = Depends(get_current_user)):
+    """Live provider health as seen by this API process (circuit-breaker state, recent success rate)."""
+    reg = get_registry()
+    snap = provider_health.snapshot()
+    out = {}
+    for name, p in reg.providers.items():
+        if not p.configured():
+            continue
+        out[name] = snap.get(name) or {"state": "unknown", "success_rate": None, "samples": 0,
+                                       "consecutive_failures": 0, "last_error": None}
+        out[name]["label"] = p.label
+    return {"providers": out, "scope": "this API process, recent requests"}
 
 
 @router.get("/usage/summary")

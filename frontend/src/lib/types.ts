@@ -4,7 +4,14 @@ export interface User {
   id: string;
   email: string;
   display_name: string;
-  preferences: { default_model?: string; reasoning_mode?: Reasoning; theme?: "light" | "dark" | "system" };
+  preferences: {
+    default_model?: string;
+    reasoning_mode?: Reasoning;
+    theme?: "light" | "dark" | "system";
+    allowed_providers?: string[];
+    preferred_providers?: string[];
+    allow_fallback?: boolean;
+  };
   created_at: string;
 }
 
@@ -34,6 +41,7 @@ export interface Message {
   output_tokens: number | null;
   latency_ms: number | null;
   rating: number | null;
+  notice?: string | null;
   created_at: string;
 }
 
@@ -60,6 +68,7 @@ export interface ProviderInfo {
   label: string;
   configured: boolean;
   mock: boolean;
+  health?: "healthy" | "degraded" | "down" | "recovering" | "unknown";
   models: ModelInfo[];
 }
 

@@ -1,30 +1,12 @@
 """Provider registry and automatic model routing."""
 
-import re
-from dataclasses import dataclass
-
 from ..config import Settings, get_settings
 from .anthropic_provider import AnthropicProvider
-from .base import ModelInfo, Provider, ReasoningMode
+from .base import ModelInfo, Provider, ReasoningMode  # noqa: F401
 from .catalog import load_catalog
 from .gemini_provider import GeminiProvider
 from .mock_provider import MockProvider
 from .openai_provider import OpenAIProvider, XAIProvider
-
-# Order used when several configured providers could serve a request.
-PROVIDER_PREFERENCE = ["anthropic", "openai", "gemini", "xai", "mock"]
-
-_COMPLEX_HINTS = re.compile(
-    r"\b(prove|derive|analy[sz]e|architecture|step[- ]by[- ]step|debug|refactor|optimi[sz]e|trade-?offs?|"
-    r"research|compare|strategy|algorithm|complexity)\b",
-    re.I,
-)
-
-
-@dataclass
-class RouteDecision:
-    model: ModelInfo
-    reason: str
 
 
 class Registry:
@@ -54,34 +36,15 @@ class Registry:
                 return provider, m
         return None
 
-    def route(self, prompt: str, mode: ReasoningMode, needs_vision: bool = False) -> RouteDecision | None:
-        """Pick a configured model for 'auto'. Real providers are always preferred over mock."""
-        candidates = [m for m in self.available_models() if (m.vision or not needs_vision)]
-        if not candidates:
-            return None
-        real = [m for m in candidates if m.provider != "mock"]
-        pool = real or candidates
+    def route(self, prompt: str, mode: ReasoningMode, needs_vision: bool = False, *, evidence=None,
+              allowed_providers: list[str] | None = None, preferred_providers: list[str] | None = None):
+        """Rank configured models for this request with the Trio Router (see services/router.py)."""
+        from ..services.health import health
+        from ..services.router import rank_models
 
-        complex_prompt = len(prompt) > 1500 or "```" in prompt or bool(_COMPLEX_HINTS.search(prompt))
-        if mode == "deep":
-            tier, why = "deep", "Deep mode"
-        elif mode == "fast":
-            tier, why = "fast", "Fast mode"
-        elif complex_prompt:
-            tier, why = "deep", "Balanced mode, prompt looks complex"
-        else:
-            tier, why = "balanced", "Balanced mode, everyday prompt"
-
-        order = {"fast": ["fast", "balanced", "deep"], "balanced": ["balanced", "fast", "deep"],
-                 "deep": ["deep", "balanced", "fast"]}[tier]
-        for t in order:
-            for pname in PROVIDER_PREFERENCE:
-                for m in pool:
-                    if m.tier == t and m.provider == pname:
-                        suffix = "" if t == tier else f" (no {tier}-tier model configured)"
-                        return RouteDecision(m, f"{why}: chose {m.label}{suffix}")
-        m = pool[0]
-        return RouteDecision(m, f"{why}: chose {m.label}")
+        return rank_models(self.available_models(), prompt, mode, needs_vision=needs_vision, health=health,
+                           evidence=evidence, allowed_providers=allowed_providers,
+                           preferred_providers=preferred_providers)
 
 
 _registry: Registry | None = None

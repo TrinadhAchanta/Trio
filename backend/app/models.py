@@ -105,6 +105,8 @@ class Message(Base):
     output_tokens: Mapped[int | None] = mapped_column(Integer)
     latency_ms: Mapped[int | None] = mapped_column(Integer)
     rating: Mapped[int | None] = mapped_column(Integer)  # -1 | 1
+    task_type: Mapped[str | None] = mapped_column(String(30))  # router classification of the prompt
+    notice: Mapped[str | None] = mapped_column(Text)  # e.g. "X was unavailable, so Y answered instead."
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
     conversation: Mapped[Conversation] = relationship(back_populates="messages")
@@ -168,7 +170,8 @@ class UsageRecord(Base):
     org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"))
     conversation_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     message_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
-    feature: Mapped[str] = mapped_column(String(30), nullable=False)  # chat|compare|title
+    feature: Mapped[str] = mapped_column(String(30), nullable=False)  # chat|compare|synthesis|eval|api
+    task_type: Mapped[str | None] = mapped_column(String(30))
     provider: Mapped[str] = mapped_column(String(40), nullable=False)
     model: Mapped[str] = mapped_column(String(120), nullable=False)
     input_tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -238,4 +241,30 @@ class WebhookEvent(Base):
     __tablename__ = "webhook_events"
     id: Mapped[str] = mapped_column(String(80), primary_key=True)  # Stripe event id
     type: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class EvalRun(Base):
+    __tablename__ = "eval_runs"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    suite: Mapped[str] = mapped_column(String(60), nullable=False)
+    dataset_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    models: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    summary: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class EvalResult(Base):
+    __tablename__ = "eval_results"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("eval_runs.id", ondelete="CASCADE"), index=True)
+    model_id: Mapped[str] = mapped_column(String(160), index=True, nullable=False)
+    case_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    task_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    passed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    score: Mapped[float] = mapped_column(Float, nullable=False)
+    latency_ms: Mapped[int | None] = mapped_column(Integer)
+    cost_usd: Mapped[float | None] = mapped_column(Float)
+    error: Mapped[str | None] = mapped_column(Text)
+    output_excerpt: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)

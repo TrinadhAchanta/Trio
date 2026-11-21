@@ -20,6 +20,7 @@ from ..providers.base import ChatMessage, ModelInfo, Provider, ProviderError
 from ..providers.mock_provider import estimate_tokens
 from ..schemas import CompareIn, CompareVoteIn, SynthesizeIn
 from ..security import audit, client_ip, get_current_user, primary_org_id
+from ..services.health import health
 from ..services.usage import record_usage
 from .chat import _precheck, _streaming_response, resolve_model, sse
 
@@ -57,6 +58,10 @@ async def _run_one(queue: asyncio.Queue, provider: Provider, info: ModelInfo, me
     except Exception:
         error = ProviderError("internal_error", "Unexpected error from this model.")
     latency = int((time.perf_counter() - start) * 1000)
+    if error:
+        health.record(info.provider, info.model, False, retryable=error.retryable, error=error.code)
+    else:
+        health.record(info.provider, info.model, True, latency)
     text = "".join(parts)
     in_tok = usage.input_tokens if usage else estimate_tokens(system + messages[-1].content)
     out_tok = usage.output_tokens if usage else estimate_tokens(text) if text else 0
@@ -101,20 +106,20 @@ async def compare(body: CompareIn, user: User = Depends(get_current_user), db: S
     _precheck(db, user)
     if len(set(body.models)) != len(body.models):
         raise HTTPException(status_code=400, detail="Pick different models to compare.")
-    resolved = [resolve_model(m, body.prompt, body.reasoning_mode, False) for m in body.models]
+    resolved = [resolve_model(m, body.prompt, body.reasoning_mode, False, user, db).attempts[0] for m in body.models]
     org_id = primary_org_id(db, user)
     messages = [ChatMessage(role="user", content=body.prompt)]
 
     def job(p, i):
         return lambda q: _run_one(q, p, i, messages, COMPARE_SYSTEM, body.reasoning_mode, user.id, org_id, "compare")
 
-    return _streaming_response(_fan_in([job(p, i) for p, i, _ in resolved]))
+    return _streaming_response(_fan_in([job(p, i) for p, i in resolved]))
 
 
 @router.post("/synthesize")
 async def synthesize(body: SynthesizeIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     _precheck(db, user)
-    provider, info, _ = resolve_model(body.model, body.prompt, "balanced", False)
+    provider, info = resolve_model(body.model, body.prompt, "balanced", False, user, db).attempts[0]
     blocks = []
     for a in body.answers:
         label = a.model

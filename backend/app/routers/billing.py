@@ -90,7 +90,8 @@ def create_checkout(body: CheckoutIn, request: Request, user: User = Depends(get
     if plan.checkout == "contact":
         raise HTTPException(status_code=400, detail=f"The {plan.name} plan is arranged with our sales team, not online checkout.")
     if not plan.stripe_price_id:
-        raise HTTPException(status_code=503, detail=f"The {plan.name} plan has no Stripe price configured ({plan.stripe_price_env}).")
+        raise HTTPException(status_code=503, detail=f"The {plan.name} plan has no Stripe price configured "
+                                                    f"({plan.stripe_price_env}).")
     sub = get_subscription(db, org_id)
     if sub.stripe_subscription_id and sub.status in ("active", "trialing", "past_due"):
         raise HTTPException(status_code=409, detail="You already have a subscription. Use Manage subscription to change plans.")

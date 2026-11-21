@@ -24,6 +24,8 @@ jobs:
       - run: pip-audit -r requirements.txt
       - run: pytest -q
         env: { DATABASE_URL: "postgresql+psycopg://trio:trio@localhost:5432/trio_test" }
+      - name: Router classifier eval (no model calls)
+        run: python -m evals.run --suite routing
       - name: Migrations apply cleanly
         run: alembic upgrade head
         env: { DATABASE_URL: "postgresql+psycopg://trio:trio@localhost:5432/trio_test" }

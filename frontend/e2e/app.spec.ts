@@ -53,7 +53,8 @@ test("provider failure shows a clear error and is recorded in usage", async ({ p
   await sendMessage(page, "Please fail [[mock-error]]");
   await expect(page.getByTestId("assistant-message")).toContainText("This reply failed", { timeout: 15_000 });
   await page.goto("/usage");
-  await expect(page.getByText("provider_unavailable")).toBeVisible();
+  // the chosen model and its automatic fallback both failed, so two failed attempts are listed
+  await expect(page.getByText("provider_unavailable").first()).toBeVisible();
 });
 
 test("artifact renders in a sandboxed preview, runs, and can be edited", async ({ page }) => {
@@ -157,3 +158,14 @@ for (const [name, path] of [
     expect(serious.map((v) => `${v.id}: ${v.help} (${v.nodes.length})`)).toEqual([]);
   });
 }
+
+test("when the chosen model fails, the next model answers and the reply says so", async ({ page }) => {
+  await registerViaUI(page);
+  await page.getByTestId("model-picker").selectOption("mock:mock-echo");
+  await sendMessage(page, "Hello [[mock-error:mock-echo]]");
+  const reply = page.getByTestId("assistant-message").last();
+  await expect(reply).toContainText(/mock deep response/i, { timeout: 15_000 });
+  await expect(reply.getByTestId("fallback-note")).toContainText("Mock Deep (demo) answered instead");
+  await page.goto("/settings");
+  await expect(page.getByTestId("routing-settings").getByTestId("allow-fallback")).toBeChecked();
+});

@@ -1,0 +1,40 @@
+{"id": "r01", "prompt": "Why does my Python function return None instead of the list?", "task_type": "code"}
+{"id": "r02", "prompt": "Write a SQL query that returns the top 5 customers by revenue", "task_type": "code"}
+{"id": "r03", "prompt": "Refactor this React component to use hooks instead of a class", "task_type": "code"}
+{"id": "r04", "prompt": "I get a stack trace when I run npm start, what does it mean?", "task_type": "code"}
+{"id": "r05", "prompt": "Write unit tests for this TypeScript date parser", "task_type": "code"}
+{"id": "r06", "prompt": "```\nfor i in range(10) print(i)\n```\nwhat's wrong here", "task_type": "code"}
+{"id": "r07", "prompt": "Explain the difference between a mutex and a semaphore with a Rust example", "task_type": "code"}
+{"id": "r08", "prompt": "Solve for x: 3x + 7 = 22", "task_type": "math"}
+{"id": "r09", "prompt": "What is the derivative of x^3 * sin(x)?", "task_type": "math"}
+{"id": "r10", "prompt": "Prove that there are infinitely many primes", "task_type": "math"}
+{"id": "r11", "prompt": "If I roll two dice, what is the probability the sum is 7?", "task_type": "math"}
+{"id": "r12", "prompt": "Calculate 15% of 2,340", "task_type": "math"}
+{"id": "r13", "prompt": "What is 128 * 46?", "task_type": "math"}
+{"id": "r14", "prompt": "Write a short poem about autumn in Kyoto", "task_type": "writing"}
+{"id": "r15", "prompt": "Draft an email to my landlord asking to fix the heater", "task_type": "writing"}
+{"id": "r16", "prompt": "Rewrite this paragraph so it sounds more confident", "task_type": "writing"}
+{"id": "r17", "prompt": "Give me five tagline ideas for a bakery called Crumb", "task_type": "writing"}
+{"id": "r18", "prompt": "Proofread my cover letter please", "task_type": "writing"}
+{"id": "r19", "prompt": "Write a blog post intro about remote work", "task_type": "writing"}
+{"id": "r20", "prompt": "What is the latest research on intermittent fasting? Cite sources.", "task_type": "research"}
+{"id": "r21", "prompt": "Who are the main competitors in the electric scooter market?", "task_type": "research"}
+{"id": "r22", "prompt": "Find recent news about battery recycling regulations in the EU", "task_type": "research"}
+{"id": "r23", "prompt": "What are the current trends in B2B SaaS pricing?", "task_type": "research"}
+{"id": "r24", "prompt": "According to recent studies, does coffee affect sleep quality?", "task_type": "research"}
+{"id": "r25", "prompt": "Extract the invoice number, date and total from this text as JSON", "task_type": "extraction"}
+{"id": "r26", "prompt": "Parse these addresses into street, city and postcode fields", "task_type": "extraction"}
+{"id": "r27", "prompt": "Convert this table to JSON", "task_type": "extraction"}
+{"id": "r28", "prompt": "Pull out every email address mentioned in the following text and extract them into a list", "task_type": "extraction"}
+{"id": "r29", "prompt": "Summarize this article in three bullet points", "task_type": "analysis"}
+{"id": "r30", "prompt": "Compare renting vs buying a home for someone moving every 3 years", "task_type": "analysis"}
+{"id": "r31", "prompt": "What are the pros and cons of a four-day work week?", "task_type": "analysis"}
+{"id": "r32", "prompt": "Analyze the main risks in this business plan", "task_type": "analysis"}
+{"id": "r33", "prompt": "Explain how vaccines train the immune system", "task_type": "analysis"}
+{"id": "r34", "prompt": "Evaluate these two job offers and tell me which is better", "task_type": "analysis"}
+{"id": "r35", "prompt": "hi! how's it going?", "task_type": "chat"}
+{"id": "r36", "prompt": "Tell me a fun fact", "task_type": "chat"}
+{"id": "r37", "prompt": "What should I cook tonight with eggs and spinach?", "task_type": "chat"}
+{"id": "r38", "prompt": "Recommend a good sci-fi book", "task_type": "chat"}
+{"id": "r39", "prompt": "thanks, that helped", "task_type": "chat"}
+{"id": "r40", "prompt": "Can you help me plan a weekend in Lisbon?", "task_type": "chat"}

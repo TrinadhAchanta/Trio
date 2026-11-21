@@ -25,8 +25,11 @@ browser ──► Next.js (frontend/, :3000) ──/api/* proxy──► FastAPI
   Anthropic (official `anthropic` SDK), OpenAI (official `openai` SDK), xAI (OpenAI-compatible API via
   the `openai` SDK) and Gemini (official REST API). A clearly labeled **Mock** provider makes the app
   usable without keys and powers the automated tests.
-- **Auto routing** (`registry.py`) picks a configured model from the reasoning mode (Fast, Balanced,
-  Deep) and the prompt, always preferring real providers over the mock.
+- **Trio Router** (`services/router.py`) picks a model per message from the task type, reasoning mode,
+  expected quality (priors updated by eval results and ratings), cost, latency and provider health,
+  and falls back to the next model if one is unavailable (`services/health.py` circuit breaker).
+- **Evaluations** (`backend/evals/`): `python -m evals.run --suite routing` (free) or
+  `--suite quality --models <ids>` (paid models need `--allow-spend --max-usd N`).
 
 Key tradeoffs: FastAPI was chosen over a TypeScript backend because later phases (RAG, document
 processing, data analysis, sandboxed code execution) are strongest in the Python ecosystem. Rate

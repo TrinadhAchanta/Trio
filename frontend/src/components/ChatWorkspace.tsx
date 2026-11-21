@@ -42,6 +42,7 @@ interface StreamState {
   modelLabel?: string;
   mock?: boolean;
   routeReason?: string;
+  fallbackNote?: string;
   error?: string;
 }
 
@@ -207,6 +208,15 @@ export function ChatWorkspace() {
         body,
         (event, data) => {
           if (event === "meta") setStream((s) => s && { ...s, modelLabel: data.model_label, mock: data.mock, routeReason: data.route_reason });
+          else if (event === "fallback")
+            setStream((s) =>
+              s && {
+                ...s,
+                modelLabel: data.to_label,
+                mock: data.mock,
+                fallbackNote: data.notice,
+              },
+            );
           else if (event === "delta") setStream((s) => s && { ...s, text: s.text + data.text });
           else if (event === "error") setStream((s) => s && { ...s, error: data.message });
           else if (event === "done" && data.artifacts?.length) {
@@ -347,6 +357,11 @@ export function ChatWorkspace() {
             {stream && (
               <div className="mb-6" data-testid="streaming-reply" aria-live="polite">
                 <AssistantHeader label={stream.modelLabel ?? "Thinking..."} mock={stream.mock} routeReason={stream.routeReason} />
+                {stream.fallbackNote && (
+                  <p className="mb-2 rounded-lg border border-accent-3/40 bg-accent-3/10 px-3 py-1.5 text-xs" data-testid="fallback-note">
+                    {stream.fallbackNote}
+                  </p>
+                )}
                 {stream.text ? (
                   <div className={clsx(!stream.error && "cursor-blink")}>
                     <Markdown text={stream.text} />
@@ -614,6 +629,7 @@ function MessageRow({
   return (
     <div className="group mb-6" data-testid="assistant-message">
       <AssistantHeader label={msg.model ? modelsLabel(`${msg.provider}:${msg.model}`) : "Assistant"} mock={msg.provider === "mock"} />
+      {msg.notice && <p className="mb-2 rounded-lg border border-accent-3/40 bg-accent-3/10 px-3 py-1.5 text-xs" data-testid="fallback-note">{msg.notice}</p>}
       {msg.content && <Markdown text={artifacts.length ? stripArtifactBlocks(msg.content) : msg.content} />}
       {msg.status === "stopped" && <p className="mt-1 text-xs text-muted">Stopped early.</p>}
       {msg.status === "error" && <ErrorBox text={`This reply failed${msg.content ? " partway through" : ""}. ${msg.error?.split(": ").slice(1).join(": ") ?? ""}`} />}

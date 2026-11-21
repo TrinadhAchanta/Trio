@@ -26,6 +26,7 @@ def record_usage(
     error_message: str | None = None,
     conversation_id: uuid.UUID | None = None,
     message_id: uuid.UUID | None = None,
+    task_type: str | None = None,
 ) -> UsageRecord:
     rec = UsageRecord(
         user_id=user_id,
@@ -43,6 +44,7 @@ def record_usage(
         error_message=(error_message or None) and error_message[:2000],
         conversation_id=conversation_id,
         message_id=message_id,
+        task_type=task_type,
     )
     db.add(rec)
     return rec

@@ -97,7 +97,7 @@ class MockProvider(Provider):
         # Earlier failed turns get merged into the last user message; only test markers in the
         # newest part should trigger simulated failures.
         newest = prompt.rsplit("\n\n", 1)[-1]
-        if "[[mock-error]]" in newest:
+        if "[[mock-error]]" in newest or f"[[mock-error:{model}]]" in newest:
             raise ProviderError("provider_unavailable", "Simulated provider outage (mock).", retryable=True,
                                 status=503)
         reply = build_reply(model, prompt, len(messages) - 1)

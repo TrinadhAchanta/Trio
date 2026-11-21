@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { applyTheme, getTheme, type Theme } from "@/lib/theme";
-import type { ModelsResponse, Reasoning, User } from "@/lib/types";
+import type { ModelsResponse, User } from "@/lib/types";
 import { useApp } from "./AppShell";
 import { ModelPicker, ReasoningPicker } from "./ModelPicker";
 
@@ -16,7 +16,7 @@ export function SettingsPanel() {
   const [verified, setVerified] = useState<ModelsResponse | null>(null);
   const [checking, setChecking] = useState(false);
 
-  async function savePrefs(p: { default_model?: string; reasoning_mode?: Reasoning }) {
+  async function savePrefs(p: Partial<User["preferences"]>) {
     const u = await api<User>("/api/auth/me/preferences", { method: "PATCH", json: p });
     setUser(u);
     setSaved(true);
@@ -39,6 +39,10 @@ export function SettingsPanel() {
   }
 
   const shown = verified ?? models;
+  const realProviders = (models?.providers ?? []).filter((p) => p.configured && !p.mock);
+  const prefs = user.preferences;
+  const toggle = (list: string[] | undefined, name: string) =>
+    (list ?? []).includes(name) ? (list ?? []).filter((x) => x !== name) : [...(list ?? []), name];
 
   return (
     <div className="h-full overflow-y-auto">
@@ -73,6 +77,55 @@ export function SettingsPanel() {
           </div>
         </section>
 
+        <section className="rounded-2xl border border-line bg-panel p-4" data-testid="routing-settings">
+          <h2 className="mb-1 text-sm font-semibold">Auto routing</h2>
+          <p className="mb-3 text-xs text-muted">
+            With the model set to Auto, the Trio Router picks a model for each message from the task type, the reasoning mode, expected
+            quality, cost, speed and provider health.
+          </p>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={prefs.allow_fallback ?? true}
+              onChange={(e) => void savePrefs({ allow_fallback: e.target.checked })}
+              data-testid="allow-fallback"
+            />
+            If a model is unavailable, retry automatically with the next best model
+          </label>
+          {realProviders.length > 0 ? (
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <fieldset>
+                <legend className="mb-1 text-xs font-medium">Prefer these providers</legend>
+                {realProviders.map((p) => (
+                  <label key={p.name} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={(prefs.preferred_providers ?? []).includes(p.name)}
+                      onChange={() => void savePrefs({ preferred_providers: toggle(prefs.preferred_providers, p.name) })}
+                    />
+                    {p.label}
+                  </label>
+                ))}
+              </fieldset>
+              <fieldset>
+                <legend className="mb-1 text-xs font-medium">Only use these providers (none ticked = all)</legend>
+                {realProviders.map((p) => (
+                  <label key={p.name} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={(prefs.allowed_providers ?? []).includes(p.name)}
+                      onChange={() => void savePrefs({ allowed_providers: toggle(prefs.allowed_providers, p.name) })}
+                    />
+                    {p.label}
+                  </label>
+                ))}
+              </fieldset>
+            </div>
+          ) : (
+            <p className="mt-3 text-xs text-muted">Provider preferences appear here once an AI provider key is configured.</p>
+          )}
+        </section>
+
         <section className="rounded-2xl border border-line bg-panel p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold">AI providers</h2>
@@ -92,6 +145,14 @@ export function SettingsPanel() {
                   <span className={`ml-1 rounded px-1.5 py-0.5 text-xs ${p.configured ? "bg-accent-2/15 text-accent-2" : "bg-panel-2 text-muted"}`}>
                     {p.mock ? "demo only" : p.configured ? "configured" : "no API key"}
                   </span>
+                  {p.configured && p.health && p.health !== "unknown" && (
+                    <span
+                      className={`ml-1 rounded px-1.5 py-0.5 text-xs ${p.health === "healthy" ? "bg-accent-2/15 text-accent-2" : "bg-danger/10 text-danger"}`}
+                      title="Based on recent requests to this server"
+                    >
+                      {p.health}
+                    </span>
+                  )}
                 </p>
                 <p className="text-xs text-muted">
                   {p.models
