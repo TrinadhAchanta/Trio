@@ -1,4 +1,4 @@
-# Trio progress
+# Trio development progress
 
 Last updated: 2026-11-21. Status words mean: **Done** = built and covered by tests that were run
 and passed; **Partial** = works but with stated gaps; **Mocked** = only exercised against the mock
@@ -18,7 +18,8 @@ provider or recorded API formats; **Blocked** = needs something outside the code
 | Artifact workspace renders a generated artifact | Done | e2e: preview renders, button clicks work inside sandbox, code edit, error capture, save version |
 | Model comparison works for configured providers | Done (mock) | `test_compare_*`, e2e compare + synthesis. Only mock models were configured. |
 | Usage and errors are recorded | Done | `usage_records` + `audit_events`; `test_usage_summary`, `test_provider_failure…`, e2e usage page |
-| Core automated tests pass | Done | 50 backend tests, 14 Playwright tests passed on 2026-11-21 |
+| Subscription checkout works in test mode | **Partial / Blocked** | Plans, credits, Checkout, portal, webhooks and billing history are built and tested with Stripe calls faked and webhooks signed locally (`test_billing.py`, 14 tests; e2e billing page). No Stripe test key was available, so a real test-mode checkout has not been run. |
+| Core automated tests pass | Done | 64 backend tests, 15 Playwright tests passed on 2026-11-21 |
 | Project starts from documented commands | Done | README commands were the ones used to run it here |
 
 ## Feature detail
@@ -37,6 +38,8 @@ provider or recorded API formats; **Blocked** = needs something outside the code
 - UI: responsive (phone drawer), light/dark/system theme without flash, command palette (Ctrl+K), keyboard shortcuts (Enter, Shift+Enter, Ctrl+Shift+O), Markdown, tables, KaTeX math, syntax highlighting, axe accessibility checks on key pages
 - Infra: Alembic migration, Dockerfiles, docker-compose, GitHub Actions CI, `.env.example`, dependency audits (pip-audit, npm audit both clean on 2026-11-21)
 
+- Subscriptions: plans Free/Plus/Pro/Business/Enterprise/Developer from `backend/plans.json` (no code change to edit prices, credits or limits); per-plan monthly credits and daily spend cap; credits charged per call (failed calls free); 402 with a clear message when credits run out; Stripe Checkout (subscription mode), customer portal (upgrade, downgrade, cancel, payment methods, invoices), signed webhooks with replay protection and idempotency, failed-payment handling (past_due keeps access, unpaid drops to Free), billing history; live Stripe keys refused unless `STRIPE_ALLOW_LIVE=true`; billing page
+
 ### Partial
 - **Model catalog**: Anthropic ids/prices are from Anthropic's current reference; OpenAI, Gemini and xAI ids/prices are editable defaults that must be verified (Settings → "Check live model lists" does this once keys exist).
 - **Rate limiting**: in-process; needs Redis for more than one API instance.
@@ -50,14 +53,15 @@ provider or recorded API formats; **Blocked** = needs something outside the code
 - **Live provider calls**: see the acceptance table.
 
 ### Not started (later phases)
-Google/Microsoft sign-in, password reset, MFA, Stripe billing, voice, image generation, RAG/pgvector,
+Google/Microsoft sign-in, password reset, MFA, refunds workflow (Stripe dashboard for now), metered Developer billing reporting, voice, image generation, RAG/pgvector,
 memory, research/web search, coding agent, office documents, email/calendar, agents and automations,
 shareable artifact links, Monaco editor, Redis, object storage (S3/GCS), centralized logging/monitoring,
 deployment.
 
 ## Blockers
-1. **No provider API key** in the build environment, so a real model call is unverified. Add any one key to `backend/.env` and send a message.
-2. **No GitHub repository** yet. Create an empty repo and the code can be pushed and CI will run.
+1. **No Stripe test key**: add `STRIPE_SECRET_KEY=sk_test_...`, `STRIPE_WEBHOOK_SECRET` and price ids to run a real test checkout.
+2. **No provider API key** in the build environment, so a real model call is unverified. Add any one key to `backend/.env` and send a message.
+3. **No GitHub repository** yet. Create an empty repo and the code can be pushed and CI will run.
 
 ## Next step
 Phase 1 wrap-up: verify one live provider with a real key, push to GitHub and get CI green.

@@ -363,7 +363,14 @@ export function ChatWorkspace() {
           <div className="mx-auto w-full max-w-3xl">
             {notice && (
               <p role="alert" className="mb-2 flex items-center justify-between rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
-                {notice}
+                <span>
+                  {notice}
+                  {/credits/i.test(notice) && (
+                    <a href="/billing" className="ml-2 font-medium underline">
+                      View plans
+                    </a>
+                  )}
+                </span>
                 <button onClick={() => setNotice(null)} aria-label="Dismiss">
                   <X size={14} />
                 </button>

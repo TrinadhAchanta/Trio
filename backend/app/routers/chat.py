@@ -26,7 +26,8 @@ from ..providers.base import ChatMessage, ImageInput, ModelInfo, Provider, Provi
 from ..providers.mock_provider import estimate_tokens
 from ..providers.registry import get_registry
 from ..schemas import ArtifactOut, MessageOut, RegenerateIn, SendMessageIn
-from ..security import enforce_rate_limit, get_current_user
+from ..security import enforce_rate_limit, get_current_user, primary_org_id
+from ..services.billing import enforce_credits
 from ..services.artifacts import ARTIFACT_SYSTEM_PROMPT, detect_artifacts
 from ..services.files import get_storage
 from ..services.usage import over_budget, record_usage
@@ -210,7 +211,8 @@ def _streaming_response(gen) -> StreamingResponse:
 
 def _precheck(db: Session, user: User) -> None:
     enforce_rate_limit(f"chat:{user.id}", get_settings().rate_limit_chat_per_minute)
-    if over_budget(db, user.id):
+    plan = enforce_credits(db, primary_org_id(db, user))
+    if over_budget(db, user.id, plan.daily_cost_limit_usd):
         raise HTTPException(status_code=429, detail="You have reached today's usage limit. It resets within 24 hours.")
 
 

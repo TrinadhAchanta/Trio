@@ -54,8 +54,17 @@ class Settings(BaseSettings):
     rate_limit_auth_per_minute: int = 10
     rate_limit_chat_per_minute: int = 30
     max_output_tokens: int = 4096
-    # Hard per-user daily spend guard in USD (estimated from provider pricing).
+    # Hard per-user daily spend guard in USD (estimated from provider pricing). Plans can set
+    # their own lower/higher value; this is the fallback.
     daily_cost_limit_usd: float = 5.0
+
+    # Billing. Plans, prices and credit rules live in a JSON file so they can change without code.
+    plans_file: str = "plans.json"
+    public_app_url: str = "http://localhost:3000"  # used for Stripe redirect URLs
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    # Safety: live-mode keys (sk_live_...) are refused unless this is explicitly true.
+    stripe_allow_live: bool = False
 
 
 @lru_cache

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from ..config import get_settings
 from ..models import UsageRecord
+from .billing import credits_for
 
 
 def record_usage(
@@ -35,6 +36,7 @@ def record_usage(
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         cost_usd=cost_usd or 0.0,
+        credits=credits_for(cost_usd, status),
         latency_ms=latency_ms,
         status=status,
         error_code=error_code,
@@ -56,5 +58,6 @@ def spent_today_usd(db: Session, user_id: uuid.UUID) -> float:
     return float(total or 0.0)
 
 
-def over_budget(db: Session, user_id: uuid.UUID) -> bool:
-    return spent_today_usd(db, user_id) >= get_settings().daily_cost_limit_usd
+def over_budget(db: Session, user_id: uuid.UUID, limit_usd: float | None = None) -> bool:
+    limit = get_settings().daily_cost_limit_usd if limit_usd is None else min(limit_usd, get_settings().daily_cost_limit_usd)
+    return spent_today_usd(db, user_id) >= limit

@@ -5,7 +5,7 @@ Trio is one workspace for chatting with, comparing and building with several AI 
 
 This repository is **Phase 1 (working MVP)**: accounts, streaming multi-provider chat,
 conversation history with branching, file uploads, side-by-side model comparison, a sandboxed
-artifact preview, and usage/error tracking. See [PROGRESS.md](PROGRESS.md) for exactly what is
+artifact preview, and usage/error tracking. See [DEVELOPMENT_PROGRESS.md](DEVELOPMENT_PROGRESS.md) for exactly what is
 done, partial, mocked and not started.
 
 ## Architecture

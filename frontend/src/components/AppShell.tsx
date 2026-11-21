@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { BarChart3, Columns3, LogOut, Menu, MessageSquarePlus, PanelLeftClose, Search, Settings, X } from "lucide-react";
+import { BarChart3, Columns3, CreditCard, LogOut, Menu, MessageSquarePlus, PanelLeftClose, Search, Settings, X } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
@@ -122,6 +122,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const nav = [
     { href: "/compare", label: "Compare models", icon: Columns3 },
     { href: "/usage", label: "Usage", icon: BarChart3 },
+    { href: "/billing", label: "Plan and billing", icon: CreditCard },
     { href: "/settings", label: "Settings", icon: Settings },
   ];
 

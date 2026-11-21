@@ -174,6 +174,7 @@ class UsageRecord(Base):
     input_tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     output_tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     cost_usd: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    credits: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
     latency_ms: Mapped[int | None] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(20), nullable=False)  # ok|error|cancelled
     error_code: Mapped[str | None] = mapped_column(String(60))
@@ -193,4 +194,48 @@ class AuditEvent(Base):
     target_id: Mapped[str | None] = mapped_column(String(64))
     ip: Mapped[str | None] = mapped_column(String(64))
     details: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class Subscription(TimestampMixin, Base):
+    """One row per organization. Free plan rows have no Stripe ids."""
+
+    __tablename__ = "subscriptions"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+    plan_id: Mapped[str] = mapped_column(String(40), nullable=False)
+    # Mirrors Stripe subscription status: active|trialing|past_due|canceled|unpaid|incomplete...
+    status: Mapped[str] = mapped_column(String(30), default="active", nullable=False)
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String(80), unique=True)
+    current_period_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancel_at_period_end: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+
+class BillingRecord(Base):
+    """Billing history (invoices) as reported by Stripe webhooks."""
+
+    __tablename__ = "billing_records"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
+    stripe_invoice_id: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)  # paid|payment_failed|open|void
+    amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    currency: Mapped[str] = mapped_column(String(10), nullable=False)
+    description: Mapped[str | None] = mapped_column(String(300))
+    hosted_invoice_url: Mapped[str | None] = mapped_column(String(500))
+    period_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class WebhookEvent(Base):
+    """Processed Stripe event ids, so redelivered webhooks are handled exactly once."""
+
+    __tablename__ = "webhook_events"
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)  # Stripe event id
+    type: Mapped[str] = mapped_column(String(80), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)

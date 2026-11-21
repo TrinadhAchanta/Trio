@@ -1,0 +1,31 @@
+{
+  "credits_per_usd": 1000,
+  "min_credits_per_request": 1,
+  "default_plan": "free",
+  "plans": [
+    {"id": "free", "name": "Free", "description": "Basic AI conversations and limited features.",
+     "price_display": "$0", "interval": "month", "monthly_credits": 200, "daily_cost_limit_usd": 1.0,
+     "stripe_price_env": null, "checkout": "none",
+     "features": ["200 credits per month", "Chat, compare and artifacts", "Uploads up to 20 MB"]},
+    {"id": "plus", "name": "Plus", "description": "Advanced AI tools with controlled usage limits.",
+     "price_display": "$12", "interval": "month", "monthly_credits": 5000, "daily_cost_limit_usd": 5.0,
+     "stripe_price_env": "STRIPE_PRICE_PLUS", "checkout": "stripe",
+     "features": ["5,000 credits per month", "All configured models", "Research and document tools"]},
+    {"id": "pro", "name": "Pro", "description": "Higher limits, advanced coding, research and agents.",
+     "price_display": "$30", "interval": "month", "monthly_credits": 20000, "daily_cost_limit_usd": 15.0,
+     "stripe_price_env": "STRIPE_PRICE_PRO", "checkout": "stripe",
+     "features": ["20,000 credits per month", "Coding studio and agents", "Priority model access"]},
+    {"id": "business", "name": "Business", "description": "Shared workspaces, integrations and administration.",
+     "price_display": "$40", "interval": "seat / month", "monthly_credits": 40000, "daily_cost_limit_usd": 40.0,
+     "stripe_price_env": "STRIPE_PRICE_BUSINESS", "checkout": "stripe",
+     "features": ["40,000 pooled credits per month", "Team workspaces and roles", "Admin dashboard"]},
+    {"id": "enterprise", "name": "Enterprise", "description": "SSO, governance, security and custom agreements.",
+     "price_display": "Custom", "interval": "contract", "monthly_credits": 500000, "daily_cost_limit_usd": 500.0,
+     "stripe_price_env": null, "checkout": "contact",
+     "features": ["SSO and SCIM", "Audit and data retention controls", "Custom terms and support"]},
+    {"id": "developer", "name": "Developer", "description": "Usage-based API billing.",
+     "price_display": "Pay as you go", "interval": "usage", "monthly_credits": 100000, "daily_cost_limit_usd": 50.0,
+     "stripe_price_env": "STRIPE_PRICE_DEVELOPER", "checkout": "stripe",
+     "features": ["API keys and developer portal", "Billed per credit used", "Rate-limited API access"]}
+  ]
+}

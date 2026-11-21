@@ -25,6 +25,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       { id: "new", label: "New chat", hint: "Ctrl+Shift+O", run: go("/chat") },
       { id: "compare", label: "Compare models", run: go("/compare") },
       { id: "usage", label: "View usage and errors", run: go("/usage") },
+      { id: "billing", label: "Plan and billing", run: go("/billing") },
       { id: "settings", label: "Settings", run: go("/settings") },
       {
         id: "theme",
