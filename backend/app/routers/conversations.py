@@ -7,7 +7,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..models import Conversation, Message, User
+from ..models import Agent, Conversation, Message, User
 from ..schemas import (
     ConversationCreate,
     ConversationDetail,
@@ -52,13 +52,19 @@ def list_conversations(
 @router.post("/conversations", response_model=ConversationOut, status_code=201)
 def create_conversation(body: ConversationCreate, user: User = Depends(get_current_user),
                         db: Session = Depends(get_db)):
+    agent = None
+    if body.agent_id:
+        agent = db.get(Agent, body.agent_id)
+        if not agent or agent.user_id != user.id:
+            raise HTTPException(status_code=404, detail="Agent not found.")
     conv = Conversation(
         user_id=user.id,
         org_id=primary_org_id(db, user),
         title=(body.title or "New conversation").strip() or "New conversation",
         folder=body.folder,
-        default_model=body.default_model,
-        reasoning_mode=body.reasoning_mode,
+        default_model=body.default_model or (agent.model if agent else None),
+        reasoning_mode=agent.reasoning_mode if agent else body.reasoning_mode,
+        agent_id=agent.id if agent else None,
     )
     db.add(conv)
     db.commit()

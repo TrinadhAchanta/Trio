@@ -11,6 +11,7 @@ export interface User {
     allowed_providers?: string[];
     preferred_providers?: string[];
     allow_fallback?: boolean;
+    memory_enabled?: boolean;
   };
   created_at: string;
 }
@@ -22,6 +23,7 @@ export interface Conversation {
   default_model: string | null;
   reasoning_mode: Reasoning;
   archived: boolean;
+  agent_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -131,4 +133,18 @@ export interface KnowledgeBase {
   created_at: string;
   updated_at: string;
   documents?: KBDocument[];
+}
+
+export interface AgentInfo {
+  id: string;
+  name: string;
+  description: string | null;
+  instructions: string;
+  model: string;
+  reasoning_mode: Reasoning;
+  knowledge_base_ids: string[];
+  starters: string[];
+  use_memory: boolean;
+  created_at: string;
+  updated_at: string;
 }

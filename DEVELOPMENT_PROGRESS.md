@@ -19,7 +19,7 @@ provider or recorded API formats; **Blocked** = needs something outside the code
 | Model comparison works for configured providers | Done (mock) | `test_compare_*`, e2e compare + synthesis. Only mock models were configured. |
 | Usage and errors are recorded | Done | `usage_records` + `audit_events`; `test_usage_summary`, `test_provider_failure…`, e2e usage page |
 | Subscription checkout works in test mode | **Partial / Blocked** | Plans, credits, Checkout, portal, webhooks and billing history are built and tested with Stripe calls faked and webhooks signed locally (`test_billing.py`, 14 tests; e2e billing page). No Stripe test key was available, so a real test-mode checkout has not been run. |
-| Core automated tests pass | Done | 79 backend tests, 16 Playwright tests passed on 2026-11-21 |
+| Core automated tests pass | Done | 123 backend tests, 30 Playwright tests (incl. axe checks on 9 pages) passed on 2026-11-21 |
 | Project starts from documented commands | Done | README commands were the ones used to run it here |
 
 ## Feature detail
@@ -47,6 +47,17 @@ provider or recorded API formats; **Blocked** = needs something outside the code
 - **Evaluation framework** (`backend/evals/`): `python -m evals.run --suite routing|quality`. Routing suite: 40 labeled prompts for the task classifier. Quality suite: 15 cases graded deterministically (exact answers, JSON equality, citation validity against given sources, bullet count, refusal vs over-refusal, prompt-injection resistance, optional sandboxed execution of generated code). Metrics: task completion, quality, citation accuracy, tool accuracy, safety, error rate, p50 latency, cost; satisfaction from ratings at `GET /api/evals/summary`. Paid models need `--allow-spend` and a `--max-usd` cap checked against a worst-case estimate; code execution needs `--exec-code` and must not run on the production server. `--save` stores runs, which feed the router.
 - **Measured so far** (2026-11-21): classifier accuracy 97.5% (39/40) on routing_v1. Caveat: the dataset is small and was written by the same author as the classifier, so treat this as a regression check, not a benchmark. The quality suite has only been run against the mock models (7% task completion, as expected for canned text); **no real model has been evaluated yet** (no API keys).
 
+### Phase 2: research, documents, images, voice, knowledge base, agents (Done, mock/demo-verified)
+| Feature | Status | What exists | Gaps |
+|---|---|---|---|
+| Knowledge base (RAG) | Done | Collections; add uploaded files (text, code, CSV, JSON, PDF) or pasted text; paragraph-aware chunking; PostgreSQL full-text search with OR-ranking; pick knowledge bases per message in chat; retrieved passages go to the model as untrusted, numbered sources and the reply cites [n]; sources stored with the message so regenerations see the same ones; per-user isolation (`test_knowledge.py`, e2e) | Keyword search only: pgvector is not installed here, so semantic (embedding) search is not built. No OCR for scanned PDFs. |
+| Deep research | Done (demo search) | Plan queries, web search (Brave or Tavily adapters), safe page fetching (SSRF guard: public IPs only, ports 80/443, redirects re-checked, size and time caps), excerpt selection, cited report, citation check (invalid numbers marked [?], coverage measured), progress steps, cancel, Markdown export (`test_research.py`, e2e) | **No search key was available**, so only the labeled demo search (4 built-in example pages) has been run. Brave/Tavily adapters are tested against recorded response shapes only. Runs in the API process; needs a worker queue at scale. |
+| Documents | Done | Generate reports, memos, letters, slide decks, spreadsheets from a prompt; edit Markdown; download as Word, PDF, PowerPoint, Excel or Markdown; any chat reply can be downloaded; spreadsheet cells starting with `=` are neutralized (`test_documents.py`, e2e) | Layout is plain (no templates or branding). PDF uses DejaVu fonts when installed, otherwise Latin-1 only. |
+| Image generation | Done (demo) | OpenAI and xAI adapters (tested against recorded API shapes), size validation, safety-block errors mapped, images stored as the user's files, credits charged; labeled placeholder generator without keys (`test_images.py`, e2e) | No real image has been generated (no keys). Model ids and per-image prices are defaults to verify. Gemini image models not added yet. |
+| Voice | Done | Dictation with the browser's speech recognition (or server transcription through OpenAI when a key is set), read-aloud with the browser's speech synthesis, server text-to-speech endpoint (`test_voice.py`, e2e for read-aloud) | Server STT/TTS tested with recorded API shapes only. In Chrome, browser dictation sends audio to Google; the button tooltip says so. No real-time voice conversation mode. |
+| Personal agents | Done | Reusable assistants with instructions, default model and mode, knowledge bases (searched automatically), conversation starters, memory toggle; "Chat" starts a conversation with the agent (`test_agents_memory.py`, e2e) | Agents cannot run tools or act on a schedule yet (automations are in a later phase). |
+| Memory | Done | Explicit only: things the user adds in Settings or saves with the bookmark button on their own message; added to the system prompt; global on/off; delete one or all | No automatic memory extraction (deliberately, for privacy). |
+
 ### Partial
 - **Model catalog**: Anthropic ids/prices are from Anthropic's current reference; OpenAI, Gemini and xAI ids/prices are editable defaults that must be verified (Settings → "Check live model lists" does this once keys exist).
 - **Rate limiting**: in-process; needs Redis for more than one API instance.
@@ -60,17 +71,17 @@ provider or recorded API formats; **Blocked** = needs something outside the code
 - **Live provider calls**: see the acceptance table.
 
 ### Not started (later phases)
-Google/Microsoft sign-in, password reset, MFA, refunds workflow (Stripe dashboard for now), metered Developer billing reporting, voice, image generation, RAG/pgvector,
-memory, research/web search, coding agent, office documents, email/calendar, agents and automations,
-shareable artifact links, Monaco editor, Redis, object storage (S3/GCS), centralized logging/monitoring,
-deployment.
+Google/Microsoft sign-in, password reset, MFA, refunds workflow (Stripe dashboard for now), metered Developer billing reporting,
+semantic search (pgvector), email/calendar connectors, scheduled automations, coding studio (Phase 3), shareable artifact links,
+Monaco editor, Redis, object storage (S3/GCS), centralized logging/monitoring, deployment.
 
 ## Blockers
+1. **No web search key**: add `BRAVE_SEARCH_API_KEY` or `TAVILY_API_KEY` to run Deep research on the real web.
 1. **No Stripe test key**: add `STRIPE_SECRET_KEY=sk_test_...`, `STRIPE_WEBHOOK_SECRET` and price ids to run a real test checkout.
 2. **No provider API key** in the build environment, so a real model call is unverified. Add any one key to `backend/.env` and send a message.
 3. **No GitHub repository** yet. Create an empty repo and the code can be pushed and CI will run.
 
 ## Next step
-Phase 2: deep research with citations, document generation, image generation, voice, knowledge base
-(RAG), personal agents. Still wanted from outside: one provider key (live call plus the first real
-quality eval), a Stripe test key, and a GitHub repository.
+Phase 3: AI Coding Studio (code workspace and editor, sandboxed execution in an isolated runner, live
+preview, automated tests, GitHub integration). Still wanted from outside: one provider key (live call
+and first real quality eval), a web search key, a Stripe test key, and a GitHub repository.

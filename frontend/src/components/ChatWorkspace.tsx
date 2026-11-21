@@ -4,6 +4,7 @@ import clsx from "clsx";
 import {
   AlertTriangle,
   ArrowUp,
+  Bookmark,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -24,7 +25,7 @@ import {
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, streamSSE, uploadFile } from "@/lib/api";
-import type { Artifact, ConversationDetail, FileInfo, Message, Reasoning, Source } from "@/lib/types";
+import type { AgentInfo, Artifact, ConversationDetail, FileInfo, Message, Reasoning, Source } from "@/lib/types";
 import { useApp } from "./AppShell";
 import { ArtifactPanel } from "./ArtifactPanel";
 import { DownloadMenu } from "./DownloadMenu";
@@ -93,6 +94,16 @@ export function ChatWorkspace() {
   const [input, setInput] = useState("");
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [kbIds, setKbIds] = useState<string[]>([]);
+  const [agent, setAgent] = useState<AgentInfo | null>(null);
+  const agentId = detail?.agent_id ?? null;
+  useEffect(() => {
+    let live = true;
+    if (!agentId) Promise.resolve().then(() => live && setAgent(null));
+    else api<AgentInfo>(`/api/agents/${agentId}`).then((a) => live && setAgent(a)).catch(() => live && setAgent(null));
+    return () => {
+      live = false;
+    };
+  }, [agentId]);
   const [uploading, setUploading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [openArtifact, setOpenArtifact] = useState<string | null>(null);
@@ -303,6 +314,11 @@ export function ChatWorkspace() {
         {detail && (
           <div className="flex items-center gap-2 border-b border-line px-4 py-2">
             <h1 className="mr-auto truncate text-sm font-semibold" title={detail.title}>
+              {agent && (
+                <span className="mr-2 rounded bg-accent/10 px-1.5 py-0.5 text-xs font-medium text-accent" data-testid="agent-badge">
+                  {agent.name}
+                </span>
+              )}
               {detail.title}
             </h1>
             <button className="rounded p-1.5 text-muted hover:bg-panel-2" onClick={rename} aria-label="Rename conversation" title="Rename">
@@ -330,6 +346,21 @@ export function ChatWorkspace() {
         <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto" data-testid="messages">
           <div className="mx-auto w-full max-w-3xl px-4 py-6">
             {loadError && <p className="rounded-lg bg-danger/10 p-3 text-sm text-danger">{loadError}</p>}
+            {agent && detail && detail.messages.length === 0 && !stream && (
+              <div className="mt-[10vh] text-center" data-testid="agent-intro">
+                <h2 className="text-2xl font-semibold">{agent.name}</h2>
+                {agent.description && <p className="mt-2 text-sm text-muted">{agent.description}</p>}
+                {agent.starters.length > 0 && (
+                  <div className="mx-auto mt-6 grid max-w-xl gap-2 sm:grid-cols-2">
+                    {agent.starters.map((s) => (
+                      <button key={s} className="rounded-xl border border-line bg-panel p-3 text-left text-sm hover:bg-panel-2" onClick={() => setInput(s)}>
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             {!activeId && !stream && (
               <div className="mt-[10vh] text-center">
                 <h1 className="text-2xl font-semibold">What can Trio help you with?</h1>
@@ -572,6 +603,7 @@ function MessageRow({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(msg.content);
   const [copied, setCopied] = useState(false);
+  const [remembered, setRemembered] = useState(false);
   const idx = siblings.findIndex((s) => s.id === msg.id);
   const iconBtn = "rounded p-1 text-muted hover:bg-panel-2 disabled:opacity-40";
 
@@ -637,6 +669,19 @@ function MessageRow({
             </button>
             <button className={iconBtn} disabled={busy} onClick={() => setEditing(true)} aria-label="Edit message">
               <Pencil size={14} />
+            </button>
+            <button
+              className={iconBtn}
+              onClick={() =>
+                void api("/api/memory", { method: "POST", json: { message_id: msg.id } }).then(() => {
+                  setRemembered(true);
+                  setTimeout(() => setRemembered(false), 1500);
+                })
+              }
+              aria-label="Remember this"
+              title="Save this message to your memory"
+            >
+              {remembered ? <Check size={14} /> : <Bookmark size={14} />}
             </button>
           </div>
         )}

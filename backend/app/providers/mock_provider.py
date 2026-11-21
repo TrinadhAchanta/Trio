@@ -110,6 +110,11 @@ class MockProvider(Provider):
             raise ProviderError("provider_unavailable", "Simulated provider outage (mock).", retryable=True,
                                 status=503)
         reply = build_reply(model, prompt, len(messages) - 1)
+        if system and (m := re.search(r'<agent_instructions name="([^"]*)">', system)):
+            reply += f"\n\nActing as your agent **{m.group(1)}**."
+        if system and "<user_memory>" in system:
+            n = system.split("<user_memory>", 1)[1].count("\n- ")
+            reply += f"\n\nI was given {n} item(s) from your memory."
         if model == "mock-deep":
             reply = reply.replace("Mock response", "Mock deep response")
         words = reply.split(" ")

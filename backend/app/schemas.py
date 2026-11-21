@@ -45,6 +45,7 @@ class PreferencesIn(BaseModel):
     allowed_providers: list[str] | None = None  # empty list = all providers allowed
     preferred_providers: list[str] | None = None
     allow_fallback: bool | None = None
+    memory_enabled: bool | None = None
 
 
 # ---- conversations ----
@@ -53,6 +54,7 @@ class ConversationCreate(BaseModel):
     folder: str | None = Field(default=None, max_length=120)
     default_model: str | None = None
     reasoning_mode: Reasoning = "balanced"
+    agent_id: uuid.UUID | None = None
 
 
 class ConversationUpdate(BaseModel):
@@ -70,6 +72,7 @@ class ConversationOut(ORM):
     default_model: str | None
     reasoning_mode: str
     archived: bool
+    agent_id: uuid.UUID | None = None
     created_at: datetime
     updated_at: datetime
 

@@ -3,9 +3,11 @@
 Trio is one workspace for chatting with, comparing and building with several AI models
 (OpenAI, Anthropic, Google Gemini and xAI) through their official APIs.
 
-This repository is **Phase 1 (working MVP)**: accounts, streaming multi-provider chat,
-conversation history with branching, file uploads, side-by-side model comparison, a sandboxed
-artifact preview, and usage/error tracking. See [DEVELOPMENT_PROGRESS.md](DEVELOPMENT_PROGRESS.md) for exactly what is
+Built so far: accounts, streaming multi-provider chat with branching, file uploads, side-by-side
+model comparison, sandboxed artifact previews, subscriptions and credits (Stripe test mode), the Trio
+Router with model fallback and provider health, an evaluation framework, and Phase 2: knowledge bases
+with cited answers, deep research, document generation and export (Word, PDF, PowerPoint, Excel),
+image generation, voice, personal agents and memory. See [DEVELOPMENT_PROGRESS.md](DEVELOPMENT_PROGRESS.md) for exactly what is
 done, partial, mocked and not started.
 
 ## Architecture
@@ -73,6 +75,7 @@ Or run everything in containers: `docker compose up --build`, then open http://l
 | OpenAI | `OPENAI_API_KEY` | GPT-5 family (catalog default, verify) |
 | Google | `GEMINI_API_KEY` | Gemini 2.5 Pro / Flash (catalog default, verify) |
 | xAI | `XAI_API_KEY` | Grok (catalog default, verify) |
+| Brave Search or Tavily | `BRAVE_SEARCH_API_KEY` / `TAVILY_API_KEY` | Web search for Deep research (otherwise a labeled demo search) |
 
 Model ids and prices change often. After adding a key, open **Settings → Check live model lists**
 to see which catalog models your key can actually use, and override the catalog without code

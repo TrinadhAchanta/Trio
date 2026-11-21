@@ -28,6 +28,7 @@ from ..providers.mock_provider import estimate_tokens
 from ..providers.registry import get_registry
 from ..schemas import ArtifactOut, MessageOut, RegenerateIn, SendMessageIn
 from ..security import enforce_rate_limit, get_current_user, primary_org_id
+from ..services import agents as agent_svc
 from ..services import knowledge as kb_svc
 from ..services.artifacts import ARTIFACT_SYSTEM_PROMPT, detect_artifacts
 from ..services.billing import enforce_credits
@@ -204,7 +205,7 @@ def _record_failed_attempt(*, user_id, org_id, conv_id, assistant_id, info: Mode
 
 
 async def stream_reply(*, user_id, org_id, conv_id, assistant_id, plan: RoutePlan, chat_messages: list[ChatMessage],
-                       mode: str, user_message: dict | None):
+                       mode: str, user_message: dict | None, system: str = ARTIFACT_SYSTEM_PROMPT):
     s = get_settings()
     provider, info = plan.attempts[0]
     yield sse("meta", {
@@ -229,7 +230,7 @@ async def stream_reply(*, user_id, org_id, conv_id, assistant_id, plan: RoutePla
             attempt_start = time.perf_counter()
             error = None
             try:
-                async for ev in provider.stream(info.model, chat_messages, system=ARTIFACT_SYSTEM_PROMPT,
+                async for ev in provider.stream(info.model, chat_messages, system=system,
                                                 max_tokens=s.max_output_tokens, reasoning=mode):  # type: ignore[arg-type]
                     if ev.type == "text":
                         parts.append(ev.text)
@@ -313,9 +314,11 @@ async def send_message(conversation_id: uuid.UUID, body: SendMessageIn, request:
     plan = resolve_model(body.model, body.content, body.reasoning_mode, needs_vision, user, db)
     info = plan.attempts[0][1]
 
+    agent = agent_svc.conversation_agent(db, user, conv)
+    kb_ids = list(dict.fromkeys([*body.knowledge_base_ids, *agent_svc.agent_kb_ids(agent)]))
     sources = []
-    if body.knowledge_base_ids:
-        hits = kb_svc.search(db, user, body.knowledge_base_ids, body.content)
+    if kb_ids:
+        hits = kb_svc.search(db, user, kb_ids, body.content)
         sources = [{"n": i + 1, **h} for i, h in enumerate(hits)]
     user_msg = Message(conversation_id=conv.id, parent_id=parent_id, role="user", content=body.content,
                        attachments=[str(f.id) for f in files], task_type=plan.task_type, sources=sources)
@@ -337,6 +340,7 @@ async def send_message(conversation_id: uuid.UUID, body: SendMessageIn, request:
         user_id=user.id, org_id=conv.org_id, conv_id=conv.id, assistant_id=assistant.id, plan=plan,
         chat_messages=chat_messages, mode=body.reasoning_mode,
         user_message=MessageOut.model_validate(user_msg).model_dump(mode="json"),
+        system=agent_svc.system_prompt(db, user, agent),
     ))
 
 
@@ -360,4 +364,5 @@ async def regenerate(conversation_id: uuid.UUID, body: RegenerateIn, user: User 
     return _streaming_response(stream_reply(
         user_id=user.id, org_id=conv.org_id, conv_id=conv.id, assistant_id=assistant.id, plan=plan,
         chat_messages=chat_messages, mode=body.reasoning_mode, user_message=None,
+        system=agent_svc.system_prompt(db, user, agent_svc.conversation_agent(db, user, conv)),
     ))

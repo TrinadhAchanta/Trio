@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { BarChart3, BookOpen, Columns3, CreditCard, FileText, ImageIcon, LogOut, Telescope, Menu, MessageSquarePlus, PanelLeftClose, Search, Settings, X } from "lucide-react";
+import { BarChart3, BookOpen, Bot, Columns3, CreditCard, FileText, ImageIcon, LogOut, Telescope, Menu, MessageSquarePlus, PanelLeftClose, Search, Settings, X } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
@@ -120,6 +120,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   const nav = [
+    { href: "/agents", label: "Agents", icon: Bot },
     { href: "/research", label: "Deep research", icon: Telescope },
     { href: "/knowledge", label: "Knowledge", icon: BookOpen },
     { href: "/documents", label: "Documents", icon: FileText },

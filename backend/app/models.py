@@ -80,6 +80,7 @@ class Conversation(TimestampMixin, Base):
     default_model: Mapped[str | None] = mapped_column(String(120), nullable=True)
     reasoning_mode: Mapped[str] = mapped_column(String(20), default="balanced", nullable=False)
     archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    agent_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("agents.id", ondelete="SET NULL"), nullable=True)
 
     messages: Mapped[list["Message"]] = relationship(
         back_populates="conversation", cascade="all, delete-orphan", order_by="Message.created_at"
@@ -358,4 +359,33 @@ class ImageGeneration(Base):
     file_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("files.id", ondelete="SET NULL"))
     revised_prompt: Mapped[str | None] = mapped_column(Text)
     cost_usd: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+# ---- Phase 2: personal agents and memory ----
+class Agent(TimestampMixin, Base):
+    """A reusable assistant: the user's own instructions, default model and knowledge bases."""
+
+    __tablename__ = "agents"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+    description: Mapped[str | None] = mapped_column(String(300))
+    instructions: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    model: Mapped[str] = mapped_column(String(160), nullable=False, default="auto")
+    reasoning_mode: Mapped[str] = mapped_column(String(20), nullable=False, default="balanced")
+    knowledge_base_ids: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    starters: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    use_memory: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class MemoryItem(Base):
+    """Something the user explicitly asked Trio to remember. Never created without a user action."""
+
+    __tablename__ = "memory_items"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="manual")  # manual | message
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)

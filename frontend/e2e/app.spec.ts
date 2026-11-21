@@ -148,6 +148,12 @@ for (const [name, path] of [
   ["sign-in page", "/login"],
   ["chat page", "/chat"],
   ["compare page", "/compare"],
+  ["agents page", "/agents"],
+  ["research page", "/research"],
+  ["knowledge page", "/knowledge"],
+  ["documents page", "/documents"],
+  ["images page", "/images"],
+  ["settings page", "/settings"],
 ] as const) {
   test(`no serious accessibility violations on the ${name}`, async ({ page }) => {
     if (path !== "/login") await registerViaUI(page, uniqueEmail("a11y"));

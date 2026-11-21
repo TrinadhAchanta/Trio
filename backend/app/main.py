@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 
 from .config import get_settings
 from .routers import (
+    agents,
     artifacts,
     auth,
     billing,
@@ -74,7 +75,7 @@ def create_app() -> FastAPI:
         return JSONResponse(status_code=500, content={"detail": "Something went wrong on our side."})
 
     for r in (auth, conversations, chat, files, artifacts, compare, billing, meta, evals, knowledge, research, documents,
-              images, voice):
+              images, voice, agents):
         app.include_router(r.router)
     return app
 

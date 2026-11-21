@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { applyTheme, getTheme, type Theme } from "@/lib/theme";
 import type { ModelsResponse, User } from "@/lib/types";
 import { useApp } from "./AppShell";
+import { MemorySettings } from "./MemorySettings";
 import { ModelPicker, ReasoningPicker } from "./ModelPicker";
 
 export function SettingsPanel() {
@@ -76,6 +77,8 @@ export function SettingsPanel() {
             <ReasoningPicker value={user.preferences.reasoning_mode ?? "balanced"} onChange={(v) => void savePrefs({ reasoning_mode: v })} />
           </div>
         </section>
+
+        <MemorySettings enabled={prefs.memory_enabled ?? true} onToggle={(on) => savePrefs({ memory_enabled: on })} />
 
         <section className="rounded-2xl border border-line bg-panel p-4" data-testid="routing-settings">
           <h2 className="mb-1 text-sm font-semibold">Auto routing</h2>
