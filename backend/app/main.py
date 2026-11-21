@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .config import get_settings
-from .routers import artifacts, auth, billing, chat, compare, conversations, evals, files, meta
+from .routers import artifacts, auth, billing, chat, compare, conversations, evals, files, knowledge, meta
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("trio")
@@ -46,7 +46,7 @@ def create_app() -> FastAPI:
         log.exception("Unhandled error on %s %s", request.method, request.url.path)
         return JSONResponse(status_code=500, content={"detail": "Something went wrong on our side."})
 
-    for r in (auth, conversations, chat, files, artifacts, compare, billing, meta, evals):
+    for r in (auth, conversations, chat, files, artifacts, compare, billing, meta, evals, knowledge):
         app.include_router(r.router)
     return app
 

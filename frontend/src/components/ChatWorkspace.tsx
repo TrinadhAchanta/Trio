@@ -24,9 +24,10 @@ import {
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, streamSSE, uploadFile } from "@/lib/api";
-import type { Artifact, ConversationDetail, FileInfo, Message, Reasoning } from "@/lib/types";
+import type { Artifact, ConversationDetail, FileInfo, Message, Reasoning, Source } from "@/lib/types";
 import { useApp } from "./AppShell";
 import { ArtifactPanel } from "./ArtifactPanel";
+import { KnowledgePicker } from "./KnowledgePicker";
 import { Markdown } from "./Markdown";
 import { ModelPicker, ReasoningPicker, modelLabel } from "./ModelPicker";
 
@@ -89,6 +90,7 @@ export function ChatWorkspace() {
   const [mode, setMode] = useState<Reasoning>(user.preferences.reasoning_mode ?? "balanced");
   const [input, setInput] = useState("");
   const [files, setFiles] = useState<FileInfo[]>([]);
+  const [kbIds, setKbIds] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [openArtifact, setOpenArtifact] = useState<string | null>(null);
@@ -195,6 +197,7 @@ export function ChatWorkspace() {
             model,
             reasoning_mode: mode,
             attachments: files.map((f) => f.id),
+            knowledge_base_ids: kbIds,
             ...(opts.parentId ? { parent_id: opts.parentId } : { branch_from_root: true }),
           }
         : { user_message_id: opts.userMessageId, model, reasoning_mode: mode };
@@ -207,7 +210,7 @@ export function ChatWorkspace() {
         url,
         body,
         (event, data) => {
-          if (event === "meta") setStream((s) => s && { ...s, modelLabel: data.model_label, mock: data.mock, routeReason: data.route_reason });
+          if (event === "meta") setStream((s) => s && { ...s, modelLabel: data.model_label, mock: data.mock, routeReason: data.route_reason, user: data.user_message ?? s.user });
           else if (event === "fallback")
             setStream((s) =>
               s && {
@@ -338,8 +341,9 @@ export function ChatWorkspace() {
                 </div>
               </div>
             )}
-            {visible.map(({ msg, siblings }) => (
+            {visible.map(({ msg, siblings }, i) => (
               <MessageRow
+                sources={msg.role === "assistant" && visible[i - 1]?.msg.id === msg.parent_id ? visible[i - 1].msg.sources : undefined}
                 key={msg.id}
                 msg={msg}
                 siblings={siblings}
@@ -460,6 +464,7 @@ export function ChatWorkspace() {
                 >
                   <Paperclip size={16} />
                 </button>
+                <KnowledgePicker value={kbIds} onChange={setKbIds} />
                 <ModelPicker models={models} value={model} onChange={setModel} id="model-picker" />
                 <ReasoningPicker value={mode} onChange={setMode} />
                 <span className="ml-auto text-xs text-muted">{uploading ? "Uploading..." : ""}</span>
@@ -544,9 +549,11 @@ function MessageRow({
   onRegenerate,
   onRate,
   onOpenArtifact,
+  sources,
 }: {
   msg: Message;
   siblings: Message[];
+  sources?: Source[];
   modelsLabel: (id: string) => string;
   artifacts: Artifact[];
   busy: boolean;
@@ -606,6 +613,11 @@ function MessageRow({
         ) : (
           <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl bg-accent/10 px-4 py-2.5 text-[15px]">{msg.content}</div>
         )}
+        {(msg.sources?.length ?? 0) > 0 && (
+          <span className="mt-1 text-xs text-muted" data-testid="kb-searched">
+            Searched your knowledge base: {msg.sources!.length} passage{msg.sources!.length > 1 ? "s" : ""} found
+          </span>
+        )}
         {msg.attachments.length > 0 && (
           <span className="mt-1 inline-flex items-center gap-1 text-xs text-muted">
             <Paperclip size={12} /> {msg.attachments.length} attachment{msg.attachments.length > 1 ? "s" : ""}
@@ -631,6 +643,7 @@ function MessageRow({
       <AssistantHeader label={msg.model ? modelsLabel(`${msg.provider}:${msg.model}`) : "Assistant"} mock={msg.provider === "mock"} />
       {msg.notice && <p className="mb-2 rounded-lg border border-accent-3/40 bg-accent-3/10 px-3 py-1.5 text-xs" data-testid="fallback-note">{msg.notice}</p>}
       {msg.content && <Markdown text={artifacts.length ? stripArtifactBlocks(msg.content) : msg.content} />}
+      {sources && sources.length > 0 && <SourceList sources={sources} />}
       {msg.status === "stopped" && <p className="mt-1 text-xs text-muted">Stopped early.</p>}
       {msg.status === "error" && <ErrorBox text={`This reply failed${msg.content ? " partway through" : ""}. ${msg.error?.split(": ").slice(1).join(": ") ?? ""}`} />}
       {artifacts.length > 0 && (
@@ -671,5 +684,25 @@ function MessageRow({
         )}
       </div>
     </div>
+  );
+}
+
+function SourceList({ sources }: { sources: Source[] }) {
+  return (
+    <details className="mt-2 rounded-lg border border-line bg-panel px-3 py-2 text-sm" data-testid="source-list">
+      <summary className="cursor-pointer text-xs font-medium text-muted">
+        Sources from your knowledge base ({sources.length})
+      </summary>
+      <ol className="mt-2 space-y-2">
+        {sources.map((s) => (
+          <li key={s.chunk_id} className="text-xs">
+            <span className="font-medium">
+              [{s.n}] {s.title}
+            </span>
+            <p className="mt-0.5 line-clamp-3 text-muted">{s.content}</p>
+          </li>
+        ))}
+      </ol>
+    </details>
   );
 }

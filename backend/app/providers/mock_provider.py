@@ -6,6 +6,8 @@ to fail mid-stream.
 """
 
 import asyncio
+import html
+import re
 from collections.abc import AsyncIterator
 
 from .base import ChatMessage, ModelInfo, Provider, ProviderError, ReasoningMode, StreamEvent
@@ -54,12 +56,19 @@ def build_reply(model: str, prompt: str, history_len: int) -> str:
             + ARTIFACT_HTML
             + "\n```\n\nClick **Add one** in the preview to try it."
         )
+    cites = ""
+    if "<knowledge_sources>" in prompt:
+        prompt, block = prompt.split("<knowledge_sources>", 1)
+        found = re.findall(r'<source n="(\d+)" title="([^"]*)">\n(.*?)\n</source>', block, re.S)
+        cites = "".join(f"- Source [{n}] ({html.unescape(t)}): _{c.strip()[:120]}_\n" for n, t, c in found[:3])
+        cites = f"Knowledge base passages I was given:\n\n{cites}\n" if cites else ""
     snippet = prompt.strip().replace("\n", " ")
     if len(snippet) > 160:
         snippet = snippet[:157] + "..."
     return (
         header
         + f"You said: _{snippet}_\n\n"
+        + cites
         + f"This conversation has {history_len} earlier message(s). Configure an API key for OpenAI, "
         + "Anthropic, Google Gemini or xAI on the server to get real answers.\n\n"
         + "| Feature | Status |\n|---|---|\n| Streaming | working |\n| Markdown | working |\n\n"

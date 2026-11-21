@@ -28,6 +28,7 @@ from ..providers.mock_provider import estimate_tokens
 from ..providers.registry import get_registry
 from ..schemas import ArtifactOut, MessageOut, RegenerateIn, SendMessageIn
 from ..security import enforce_rate_limit, get_current_user, primary_org_id
+from ..services import knowledge as kb_svc
 from ..services.artifacts import ARTIFACT_SYSTEM_PROMPT, detect_artifacts
 from ..services.billing import enforce_credits
 from ..services.evidence import load_evidence
@@ -126,6 +127,8 @@ def build_context(db: Session, user: User, path: list[Message], info: ModelInfo,
             continue
         content = m.content
         images: list[ImageInput] = []
+        if m.role == "user" and m.sources:
+            content += kb_svc.sources_block(m.sources)
         if m.role == "user" and m.attachments:
             for f in load_attachments(db, user, m.attachments):
                 if f.kind in ("text", "pdf") and f.extracted_text:
@@ -310,8 +313,12 @@ async def send_message(conversation_id: uuid.UUID, body: SendMessageIn, request:
     plan = resolve_model(body.model, body.content, body.reasoning_mode, needs_vision, user, db)
     info = plan.attempts[0][1]
 
+    sources = []
+    if body.knowledge_base_ids:
+        hits = kb_svc.search(db, user, body.knowledge_base_ids, body.content)
+        sources = [{"n": i + 1, **h} for i, h in enumerate(hits)]
     user_msg = Message(conversation_id=conv.id, parent_id=parent_id, role="user", content=body.content,
-                       attachments=[str(f.id) for f in files], task_type=plan.task_type)
+                       attachments=[str(f.id) for f in files], task_type=plan.task_type, sources=sources)
     db.add(user_msg)
     db.flush()
     assistant = Message(conversation_id=conv.id, parent_id=user_msg.id, role="assistant", status="streaming",

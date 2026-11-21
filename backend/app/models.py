@@ -12,6 +12,7 @@ from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
+    Computed,
     DateTime,
     Float,
     ForeignKey,
@@ -21,6 +22,7 @@ from sqlalchemy import (
     Text,
     Uuid,
 )
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -101,6 +103,9 @@ class Message(Base):
     status: Mapped[str] = mapped_column(String(20), default="complete", nullable=False)  # streaming|complete|stopped|error
     error: Mapped[str | None] = mapped_column(Text)
     attachments: Mapped[list] = mapped_column(JSON, default=list, nullable=False)  # list of file ids (str)
+    # Retrieved knowledge-base passages given to the model with this user message:
+    # [{"n", "kb_id", "document_id", "chunk_id", "title", "content"}]. Stored so regenerations see the same sources.
+    sources: Mapped[list] = mapped_column(JSON, default=list, server_default="[]", nullable=False)
     input_tokens: Mapped[int | None] = mapped_column(Integer)
     output_tokens: Mapped[int | None] = mapped_column(Integer)
     latency_ms: Mapped[int | None] = mapped_column(Integer)
@@ -268,3 +273,40 @@ class EvalResult(Base):
     error: Mapped[str | None] = mapped_column(Text)
     output_excerpt: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+# ---- Phase 2: knowledge bases (retrieval-augmented chat) ----
+class KnowledgeBase(TimestampMixin, Base):
+    __tablename__ = "knowledge_bases"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    documents: Mapped[list["KBDocument"]] = relationship(back_populates="kb", cascade="all, delete-orphan",
+                                                         order_by="KBDocument.created_at")
+
+
+class KBDocument(Base):
+    __tablename__ = "kb_documents"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    kb_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("knowledge_bases.id", ondelete="CASCADE"), index=True)
+    file_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("files.id", ondelete="SET NULL"))
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    source: Mapped[str] = mapped_column(String(20), nullable=False)  # upload | text
+    chars: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    chunk_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    kb: Mapped[KnowledgeBase] = relationship(back_populates="documents")
+
+
+class KBChunk(Base):
+    __tablename__ = "kb_chunks"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    kb_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("knowledge_bases.id", ondelete="CASCADE"), index=True)
+    document_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("kb_documents.id", ondelete="CASCADE"), index=True)
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    tsv = mapped_column(TSVECTOR, Computed("to_tsvector('english', content)", persisted=True))
+
+    __table_args__ = (Index("ix_kb_chunks_tsv", "tsv", postgresql_using="gin"),)

@@ -85,6 +85,7 @@ class MessageOut(ORM):
     status: str
     error: str | None
     attachments: list
+    sources: list = Field(default_factory=list)
     input_tokens: int | None
     output_tokens: int | None
     latency_ms: int | None
@@ -102,6 +103,7 @@ class SendMessageIn(BaseModel):
     model: str = "auto"
     reasoning_mode: Reasoning = "balanced"
     attachments: list[uuid.UUID] = Field(default_factory=list, max_length=10)
+    knowledge_base_ids: list[uuid.UUID] = Field(default_factory=list, max_length=10)
     # For edits/branches: the message the new user message should follow. None = after the
     # latest message on the current path (computed server-side).
     parent_id: uuid.UUID | None = None

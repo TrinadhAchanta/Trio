@@ -37,6 +37,7 @@ export interface Message {
   status: "streaming" | "complete" | "stopped" | "error";
   error: string | null;
   attachments: string[];
+  sources?: Source[];
   input_tokens: number | null;
   output_tokens: number | null;
   latency_ms: number | null;
@@ -99,4 +100,35 @@ export interface Artifact {
 
 export interface ArtifactDetail extends Artifact {
   versions: { version: number; content: string; source: string; created_at: string }[];
+}
+
+export interface Source {
+  n: number;
+  kb_id: string;
+  document_id: string;
+  chunk_id: string;
+  title: string;
+  content: string;
+  score?: number;
+}
+
+export interface KBDocument {
+  id: string;
+  title: string;
+  source: "upload" | "text";
+  file_id: string | null;
+  chars: number;
+  chunk_count: number;
+  created_at: string;
+}
+
+export interface KnowledgeBase {
+  id: string;
+  name: string;
+  description: string | null;
+  document_count: number;
+  chunk_count: number;
+  created_at: string;
+  updated_at: string;
+  documents?: KBDocument[];
 }
