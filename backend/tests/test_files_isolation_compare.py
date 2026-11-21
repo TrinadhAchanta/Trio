@@ -225,6 +225,7 @@ def test_context_trimming_drops_oldest():
     class FakeMsg:
         def __init__(self, role, content):
             self.role, self.content, self.status, self.attachments = role, content, "complete", []
+            self.sources = []
 
     info = ModelInfo("mock", "m", "M", "fast", context_window=5_000)
     path = [FakeMsg("user", "a" * 20_000), FakeMsg("assistant", "b" * 4_000), FakeMsg("user", "latest")]
