@@ -28,6 +28,7 @@ import type { Artifact, ConversationDetail, FileInfo, Message, Reasoning, Source
 import { useApp } from "./AppShell";
 import { ArtifactPanel } from "./ArtifactPanel";
 import { DownloadMenu } from "./DownloadMenu";
+import { ReadAloud, VoiceInput } from "./Voice";
 import { KnowledgePicker } from "./KnowledgePicker";
 import { Markdown } from "./Markdown";
 import { ModelPicker, ReasoningPicker, modelLabel } from "./ModelPicker";
@@ -465,6 +466,10 @@ export function ChatWorkspace() {
                 >
                   <Paperclip size={16} />
                 </button>
+                <VoiceInput
+                  onText={(t) => setInput((v) => (v ? `${v.trimEnd()} ${t}` : t))}
+                  className="rounded-md p-1.5 text-muted hover:bg-panel-2"
+                />
                 <KnowledgePicker value={kbIds} onChange={setKbIds} />
                 <ModelPicker models={models} value={model} onChange={setModel} id="model-picker" />
                 <ReasoningPicker value={mode} onChange={setMode} />
@@ -669,6 +674,7 @@ function MessageRow({
           {copied ? <Check size={14} /> : <Copy size={14} />}
         </button>
         {msg.content && msg.status !== "error" && <DownloadMenu markdown={msg.content} className={iconBtn} />}
+        {msg.content && <ReadAloud markdown={msg.content} className={iconBtn} />}
         <button className={iconBtn} disabled={busy} onClick={onRegenerate} aria-label="Regenerate reply" title="Regenerate with the selected model">
           <RefreshCw size={14} />
         </button>
