@@ -1,6 +1,10 @@
 #!/bin/sh
 # Entry point for the single-container image: migrate, start the API privately, serve the web app publicly.
 set -e
+if [ -z "$DATABASE_URL" ]; then
+  echo "ERROR: DATABASE_URL is not set. Add your PostgreSQL connection URL in the service's environment settings." >&2
+  exit 1
+fi
 cd /app/backend
 alembic upgrade head
 uvicorn app.main:app --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips 127.0.0.1 &
