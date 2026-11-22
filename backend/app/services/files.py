@@ -141,5 +141,40 @@ class LocalStorage:
             p.unlink()
 
 
-def get_storage() -> LocalStorage:
-    return LocalStorage(get_settings().storage_dir)
+class DbStorage:
+    """Stores file bytes in the stored_blobs table. Same interface as LocalStorage."""
+
+    def put(self, user_id: uuid.UUID, data: bytes) -> str:
+        from ..db import SessionLocal
+        from ..models import StoredBlob
+
+        key = f"{user_id}/{uuid.uuid4().hex}"
+        with SessionLocal() as db:
+            db.add(StoredBlob(key=key, data=data))
+            db.commit()
+        return key
+
+    def get(self, key: str) -> bytes:
+        from ..db import SessionLocal
+        from ..models import StoredBlob
+
+        with SessionLocal() as db:
+            b = db.get(StoredBlob, key)
+            if b is None:
+                raise FileNotFoundError(key)
+            return b.data
+
+    def delete(self, key: str) -> None:
+        from ..db import SessionLocal
+        from ..models import StoredBlob
+
+        with SessionLocal() as db:
+            b = db.get(StoredBlob, key)
+            if b is not None:
+                db.delete(b)
+                db.commit()
+
+
+def get_storage() -> LocalStorage | DbStorage:
+    s = get_settings()
+    return DbStorage() if s.storage_backend == "db" else LocalStorage(s.storage_dir)

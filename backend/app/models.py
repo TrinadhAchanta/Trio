@@ -18,6 +18,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     Uuid,
@@ -388,4 +389,13 @@ class MemoryItem(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     source: Mapped[str] = mapped_column(String(20), nullable=False, default="manual")  # manual | message
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class StoredBlob(Base):
+    """File bytes kept in PostgreSQL when STORAGE_BACKEND=db (hosts without a persistent disk)."""
+
+    __tablename__ = "stored_blobs"
+    key: Mapped[str] = mapped_column(String(300), primary_key=True)
+    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)

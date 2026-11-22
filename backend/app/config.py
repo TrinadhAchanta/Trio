@@ -6,7 +6,7 @@ sent to the browser.
 
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,6 +17,15 @@ class Settings(BaseSettings):
     environment: str = "development"  # development | test | production
 
     database_url: str = "postgresql+psycopg://trio:trio@localhost:5432/trio"
+
+    @field_validator("database_url")
+    @classmethod
+    def _psycopg_driver(cls, v: str) -> str:
+        # Hosting platforms (e.g. Render) hand out postgres:// or postgresql:// URLs; use the psycopg 3 driver.
+        for prefix in ("postgres://", "postgresql://"):
+            if v.startswith(prefix):
+                return "postgresql+psycopg://" + v[len(prefix):]
+        return v
 
     # Auth
     jwt_secret: str = Field(default="dev-only-change-me-dev-only-change-me", min_length=32)
@@ -48,6 +57,8 @@ class Settings(BaseSettings):
 
     # Uploads
     storage_dir: str = "./data/uploads"
+    # "local" = files on disk under storage_dir; "db" = file bytes in PostgreSQL (for hosts without a persistent disk)
+    storage_backend: str = "local"
     max_upload_mb: int = 20
 
     # Limits
@@ -57,6 +68,8 @@ class Settings(BaseSettings):
     # Hard per-user daily spend guard in USD (estimated from provider pricing). Plans can set
     # their own lower/higher value; this is the fallback.
     daily_cost_limit_usd: float = 5.0
+    # Safety cap on estimated AI spend across ALL users in the last 24 hours (0 disables it).
+    site_daily_cost_limit_usd: float = 10.0
 
     # Billing. Plans, prices and credit rules live in a JSON file so they can change without code.
     plans_file: str = "plans.json"

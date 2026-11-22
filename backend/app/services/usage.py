@@ -63,3 +63,15 @@ def spent_today_usd(db: Session, user_id: uuid.UUID) -> float:
 def over_budget(db: Session, user_id: uuid.UUID, limit_usd: float | None = None) -> bool:
     limit = get_settings().daily_cost_limit_usd if limit_usd is None else min(limit_usd, get_settings().daily_cost_limit_usd)
     return spent_today_usd(db, user_id) >= limit
+
+
+def site_spent_today_usd(db: Session) -> float:
+    since = datetime.now(UTC) - timedelta(days=1)
+    total = db.query(func.coalesce(func.sum(UsageRecord.cost_usd), 0.0)).filter(UsageRecord.created_at >= since).scalar()
+    return float(total or 0.0)
+
+
+def site_over_budget(db: Session) -> bool:
+    """Whole-site safety cap on estimated AI spend in the last 24 hours (0 = no cap)."""
+    cap = get_settings().site_daily_cost_limit_usd
+    return cap > 0 and site_spent_today_usd(db) >= cap

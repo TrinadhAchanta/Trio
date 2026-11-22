@@ -1,0 +1,15 @@
+.git
+.logs
+**/.env
+**/.env.*
+!**/.env.example
+backend/.venv
+backend/data
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+frontend/node_modules
+frontend/.next
+frontend/test-results
+frontend/playwright-report
+sandbox

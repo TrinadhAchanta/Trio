@@ -36,7 +36,7 @@ from ..services.evidence import load_evidence
 from ..services.files import get_storage
 from ..services.health import health
 from ..services.router import classify_task
-from ..services.usage import over_budget, record_usage
+from ..services.usage import over_budget, record_usage, site_over_budget
 from .conversations import get_owned_conversation
 
 log = logging.getLogger("trio.chat")
@@ -288,6 +288,8 @@ def _precheck(db: Session, user: User) -> None:
     plan = enforce_credits(db, primary_org_id(db, user))
     if over_budget(db, user.id, plan.daily_cost_limit_usd):
         raise HTTPException(status_code=429, detail="You have reached today's usage limit. It resets within 24 hours.")
+    if site_over_budget(db):
+        raise HTTPException(status_code=503, detail="Trio has reached its daily AI usage limit. Please try again later.")
 
 
 @router.post("/{conversation_id}/messages")

@@ -1,0 +1,59 @@
+# Render Blueprint for Trio on the free tier: one web service (Next.js + FastAPI in one container)
+# and one PostgreSQL database. Secrets marked sync: false are entered in the Render dashboard.
+services:
+  - type: web
+    name: trio
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: trio-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: STORAGE_BACKEND
+        value: db
+      - key: ENABLE_MOCK_PROVIDER
+        value: "true"
+      - key: DAILY_COST_LIMIT_USD
+        value: "5"
+      # Safety cap on estimated AI spend across all users per 24 hours. Raise it deliberately.
+      - key: SITE_DAILY_COST_LIMIT_USD
+        value: "5"
+      # AI provider keys: add at least one for real answers.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: XAI_API_KEY
+        sync: false
+      # Optional
+      - key: BRAVE_SEARCH_API_KEY
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: PUBLIC_APP_URL
+        sync: false
+
+databases:
+  - name: trio-db
+    plan: free
+    region: singapore
+    databaseName: trio
+    user: trio
