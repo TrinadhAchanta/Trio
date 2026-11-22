@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     environment: str = "development"  # development | test | production
 
     database_url: str = "postgresql+psycopg://trio:trio@localhost:5432/trio"
+    # Optional PostgreSQL schema for all Trio tables, so Trio can share a database with another app.
+    db_schema: str = Field(default="", pattern=r"^([a-z_][a-z0-9_]{0,62})?$")
 
     @field_validator("database_url")
     @classmethod
@@ -84,6 +86,10 @@ class Settings(BaseSettings):
     brave_search_api_key: str = ""
     tavily_api_key: str = ""
     research_max_sources: int = 8
+
+
+def db_connect_args(s: "Settings") -> dict:
+    return {"options": f"-csearch_path={s.db_schema}"} if s.db_schema else {}
 
 
 @lru_cache

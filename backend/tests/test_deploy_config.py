@@ -43,3 +43,20 @@ def test_site_wide_spend_cap(authed, monkeypatch):
     monkeypatch.setattr(get_settings(), "site_daily_cost_limit_usd", 0.0)
     r = authed.post(f"/api/conversations/{cid}/messages", json={"content": "hi", "model": "mock:mock-echo"})
     assert r.status_code == 200
+
+
+def test_db_schema_sets_search_path():
+    from app.config import Settings, db_connect_args
+
+    assert db_connect_args(Settings(db_schema="")) == {}
+    assert db_connect_args(Settings(db_schema="trio")) == {"options": "-csearch_path=trio"}
+
+
+def test_db_schema_rejects_unsafe_names():
+    import pytest
+    from pydantic import ValidationError
+
+    from app.config import Settings
+
+    with pytest.raises(ValidationError):
+        Settings(db_schema='trio"; drop table users;--')

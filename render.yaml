@@ -1,5 +1,7 @@
-# Render Blueprint for Trio on the free tier: one web service (Next.js + FastAPI in one container)
-# and one PostgreSQL database. Secrets marked sync: false are entered in the Render dashboard.
+# Render Blueprint for Trio on the free tier: one web service (Next.js + FastAPI in one container).
+# Render allows one free PostgreSQL per account, so Trio shares an existing database and keeps all of its
+# tables in its own schema (DB_SCHEMA=trio). Paste that database's Internal Database URL into DATABASE_URL.
+# Secrets marked sync: false are entered in the Render dashboard.
 services:
   - type: web
     name: trio
@@ -14,9 +16,9 @@ services:
       - key: ENVIRONMENT
         value: production
       - key: DATABASE_URL
-        fromDatabase:
-          name: trio-db
-          property: connectionString
+        sync: false
+      - key: DB_SCHEMA
+        value: trio
       - key: JWT_SECRET
         generateValue: true
       - key: COOKIE_SECURE
@@ -51,9 +53,3 @@ services:
       - key: PUBLIC_APP_URL
         sync: false
 
-databases:
-  - name: trio-db
-    plan: free
-    region: singapore
-    databaseName: trio
-    user: trio

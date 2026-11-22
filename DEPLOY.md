@@ -3,12 +3,15 @@
 ## Render (free tier, current target)
 
 Trio runs as **one Docker web service** (Next.js serves the site and proxies `/api/*` to FastAPI inside
-the same container) plus **one PostgreSQL database**. Uploaded files are stored in PostgreSQL
+the same container) plus **a PostgreSQL database**. Render allows one free database per account, so
+Trio can share an existing one: with `DB_SCHEMA=trio`, every Trio table (and Trio's own migration
+history) lives in a separate `trio` schema and the other app's tables are not touched. Uploaded files are stored in PostgreSQL
 (`STORAGE_BACKEND=db`) because free Render services have no persistent disk.
 
 1. Push this repository to GitHub.
 2. In Render: **New > Blueprint**, pick the repository. Render reads `render.yaml` and proposes the
-   `trio` web service and the `trio-db` database, both on the free plan.
+   `trio` web service on the free plan (in the same region as the database).
+   Set `DATABASE_URL` to the database's **Internal Database URL** (database page > Connect).
 3. When asked for secret values, enter at least one AI key (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY`).
    Leave the others empty for now; they can be added later under the service's **Environment** tab.
 4. Apply. The first build takes several minutes. Database migrations run automatically on every start.

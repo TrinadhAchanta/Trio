@@ -62,13 +62,22 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    from sqlalchemy import text
+
+    from app.config import db_connect_args
+
+    settings = get_settings()
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args=db_connect_args(settings),
     )
 
     with connectable.connect() as connection:
+        if settings.db_schema:  # validated by Settings: lowercase letters, digits, underscore
+            connection.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{settings.db_schema}"'))
+            connection.commit()
         context.configure(
             connection=connection, target_metadata=target_metadata
         )
